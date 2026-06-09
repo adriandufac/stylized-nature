@@ -8,7 +8,9 @@ import grassVertexShader from './shaders/grass/vertex.glsl'
 import grassFragmentShader from './shaders/grass/fragment.glsl'
 
 import { createNoise2D } from 'simplex-noise';
-let noise2D = createNoise2D();
+import alea from 'alea';
+
+let noise2D; // initialisé depuis terrainParams.seed plus bas (regenerateNoise)
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
@@ -28,14 +30,22 @@ scene.add(camera)
 /** FLOOR */
 // Paramètres du terrain (modifiables via le GUI)
 const terrainParams = {
-  size: 50,
-  segments: 128,
+  seed: 'w4spyxbk',
+  size: 32,
+  segments: 64  ,
   octaves: [
-    { frequency: 0.067, amplitude: 1.15 },   // grandes collines
-    { frequency: 0.116, amplitude: 1 },   // bosses moyennes
+    { frequency: 0.091, amplitude: 0.65 },   // grandes collines
+    { frequency: 0.067, amplitude: 0.6 },   // bosses moyennes
     { frequency: 0.018,  amplitude: 0.3 }, // petits détails
   ],
 }
+
+// (Re)crée le champ de bruit à partir du seed courant.
+// Toujours via alea => même seed = même terrain, reproductible.
+function regenerateNoise() {
+  noise2D = createNoise2D(alea(terrainParams.seed));
+}
+regenerateNoise();
 
 let floorGeometry = new THREE.PlaneGeometry(
   terrainParams.size,
@@ -95,7 +105,7 @@ applyTerrainHeights();
 
 const grassParams = {
   BLADE_W: 0.1,
-  BLADE_H: 0.65,
+  BLADE_H: 0.5,
   count: 80000,
 }
 
@@ -227,8 +237,31 @@ terrainParams.octaves.forEach((octave, i) => {
   folder.add(octave, 'amplitude', 0, 10, 0.05).name('Amplitude').onChange(applyTerrainHeights).onFinishChange(buildGrass)
 })
 
-// Régénère un nouveau relief aléatoire (re-seed du bruit)
-gui.add({ randomize: () => { noise2D = createNoise2D(); applyTerrainHeights(); buildGrass() } }, 'randomize').name('🎲 Nouveau seed')
+// --- Seed du terrain (reproductible via alea) ---
+
+// Reconstruit le bruit depuis le seed courant, puis le terrain et l'herbe.
+function applySeed() {
+  regenerateNoise()
+  applyTerrainHeights()
+  buildGrass()
+}
+
+// Champ texte éditable : tape un seed précis pour retrouver un terrain donné.
+const seedCtrl = gui.add(terrainParams, 'seed').name('Seed').onFinishChange(applySeed)
+
+// Nouveau seed aléatoire MAIS reproductible : on stocke la chaîne et on l'affiche.
+gui.add({ newSeed: () => {
+  terrainParams.seed = Math.random().toString(36).slice(2, 10)
+  seedCtrl.updateDisplay() // sinon le champ garde l'ancienne valeur affichée
+  applySeed()
+} }, 'newSeed').name('🎲 Nouveau seed')
+
+// Copie le seed courant dans le presse-papier.
+gui.add({ copySeed: () => {
+  navigator.clipboard.writeText(terrainParams.seed)
+    .then(() => console.log('Seed copié :', terrainParams.seed))
+    .catch((e) => console.warn('Copie impossible :', e))
+} }, 'copySeed').name('📋 Copier le seed')
 
 // GUI — réglages de l'herbe (shader)
 const grassFolder = gui.addFolder('Herbe')

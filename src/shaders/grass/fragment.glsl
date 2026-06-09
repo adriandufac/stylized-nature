@@ -6,7 +6,7 @@ varying vec3 vColor;
 void main() {
   // vColor.x : 0 à la base -> 1 à la pointe. Dégradé vertical du brin.
   vec3 col = mix(uBaseColor, uTipColor, vColor.x);
-
+  col = smoothstep(0.1, 0.8, col); // Accentue les contrastes pour un rendu plus stylisé
   gl_FragColor = vec4(col, 1.0);
 
   // Conversion espace linéaire -> sRGB (sinon couleurs délavées avec un ShaderMaterial)
