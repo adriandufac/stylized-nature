@@ -9,10 +9,14 @@ void main() {
   vec3 normal = normalize(vNormal);
   if (!gl_FrontFacing) normal = -normal; // face arrière (DoubleSide) : on utilise SA normale sortante
   float sunOrientation = dot(uSunDirection, normal);
+  // 0 quand le soleil est sous l'horizon, 1 quand il est bien levé
+  float dayFactor = smoothstep(-0.1, 0.5, uSunDirection.y);
+  float diffuse = max(sunOrientation *0.5 +0.5, 0.0) * dayFactor; // half lambert
   // vColor.x : 0 à la base -> 1 à la pointe. Dégradé vertical du brin.
   vec3 col = mix(uBaseColor, uTipColor, vColor.x);
-  col *= sunOrientation * 0.5 + 0.5; // éclairage de type Lambert (diffuse) : orienté vers le soleil = plus clair
-  col = smoothstep(0.1, 0.8, col); // Accentue les contrastes pour un rendu plus stylisé
+  col *= diffuse ; 
+  col = smoothstep(0.1, 0.8, col); // Accentue les contrastes pour un rendu plus stylisé*
+  
   gl_FragColor = vec4(col, 1.0);
 
   // Conversion espace linéaire -> sRGB (sinon couleurs délavées avec un ShaderMaterial)

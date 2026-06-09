@@ -244,7 +244,7 @@ const debugSun = new THREE.Mesh(
 )
 scene.add(debugSun);
 // Lights
-const ambientLight = new THREE.AmbientLight('#ffffff', 0.6)
+const ambientLight = new THREE.AmbientLight('#ffffff', 0.0)
 scene.add(ambientLight)
 
 const directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
