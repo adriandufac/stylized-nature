@@ -27,7 +27,10 @@ camera.position.set(0, 15, 25)
 scene.add(camera)
 
 
-/** FLOOR */
+/** 
+ * FLOOR 
+ * */
+
 // Paramètres du terrain (modifiables via le GUI)
 const terrainParams = {
   seed: 'w4spyxbk',
@@ -99,6 +102,9 @@ function rebuildTerrain() {
 
 applyTerrainHeights();
 
+
+
+
 /**
  * GRASS
  */
@@ -144,8 +150,10 @@ let bladeGeometry = buildBladeGeometry();
 const grassUniforms = {
   uTime: { value: 0 },
   uWindStrength: { value: 0.15 },
+  uBladeHeight: { value: grassParams.BLADE_H }, // hauteur locale du brin : sert à calculer la pente du vent pour la normale
   uBaseColor: { value: new THREE.Color('#1f5c2e') }, // vert foncé à la base
   uTipColor: { value: new THREE.Color('#8fd152') },  // vert clair à la pointe
+  uSunDirection: new THREE.Uniform(new THREE.Vector3(0, 0, 1)),
 }
 
 const grassMaterial = new THREE.ShaderMaterial({
@@ -207,16 +215,68 @@ function rebuildBlades() {
   const old = bladeGeometry;
   bladeGeometry = buildBladeGeometry();
   if (grass) grass.geometry = bladeGeometry;
+  grassUniforms.uBladeHeight.value = grassParams.BLADE_H; // la pente du vent dépend de la hauteur du brin
   old.dispose(); // libère l'ancienne géométrie côté GPU
 }
 
+
+/**
+ * SUN
+ */
+
+// Paramètres de la trajectoire du soleil (arc incliné)
+const sunParams = {
+  dayTime: Math.PI * 0.5,   // position SUR l'arc : 0 = lever (horizon Est), PI/2 = midi (point haut), PI = coucher (horizon Ouest), PI..2PI = sous l'horizon
+  inclination: 0.6,         // inclinaison du PLAN de l'arc : 0 = passe par le zénith, plus grand = arc penché (culmine plus bas, vers le Sud)
+  orientation: 0.0,         // azimut : fait pivoter tout l'arc (l'axe lever→coucher) autour de la verticale
+}
+
+const sunDirection = new THREE.Vector3();
+
+// Axes de rotation réutilisés (évite d'allouer un Vector3 à chaque appel)
+const SUN_AXIS_X = new THREE.Vector3(1, 0, 0) // axe Est-Ouest : sert à incliner le plan de l'arc
+const SUN_AXIS_Y = new THREE.Vector3(0, 1, 0) // axe vertical : sert à orienter l'arc (azimut)
+
+// Debug
+const debugSun = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.1, 2),
+    new THREE.MeshBasicMaterial()
+)
+scene.add(debugSun);
 // Lights
 const ambientLight = new THREE.AmbientLight('#ffffff', 0.6)
 scene.add(ambientLight)
 
 const directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
-directionalLight.position.set(5, 10, 7)
 scene.add(directionalLight)
+
+// Update : recalcule la direction du soleil à partir des 3 paramètres.
+const updateSun = () =>
+{
+  const t = sunParams.dayTime
+
+  // 1. Arc de base dans le plan vertical XY :
+  //    t=0 -> (1,0,0) horizon Est | t=PI/2 -> (0,1,0) zénith | t=PI -> (-1,0,0) horizon Ouest
+  sunDirection.set(Math.cos(t), Math.sin(t), 0)
+
+  // 2. Inclinaison : on penche le plan de l'arc autour de l'axe Est-Ouest (X).
+  //    Les points de lever/coucher (sur l'axe X) restent au sol ; seul le point haut bascule vers +Z (Sud).
+  sunDirection.applyAxisAngle(SUN_AXIS_X, sunParams.inclination)
+
+  // 3. Orientation : on fait pivoter l'arc complet autour de la verticale (Y) pour choisir la direction du lever.
+  sunDirection.applyAxisAngle(SUN_AXIS_Y, sunParams.orientation)
+
+  sunDirection.normalize();
+  directionalLight.position.copy(sunDirection);
+
+  // Debug
+  debugSun.position.copy(sunDirection).multiplyScalar(20)
+
+  //Uniforms
+  grassUniforms.uSunDirection.value.copy(sunDirection);
+}
+
+updateSun();
 
 // Controls
 const controls = new OrbitControls(camera, canvas)
@@ -236,6 +296,13 @@ terrainParams.octaves.forEach((octave, i) => {
   folder.add(octave, 'frequency', 0.001, 1, 0.001).name('Fréquence').onChange(applyTerrainHeights).onFinishChange(buildGrass)
   folder.add(octave, 'amplitude', 0, 10, 0.05).name('Amplitude').onChange(applyTerrainHeights).onFinishChange(buildGrass)
 })
+
+// GUI — Soleil
+const sunFolder = gui.addFolder('Soleil')
+sunFolder.add(sunParams, 'dayTime', 0, Math.PI * 2, 0.001).name('Heure (arc)').onChange(updateSun)
+sunFolder.add(sunParams, 'inclination', 0, Math.PI * 0.5, 0.001).name('Inclinaison').onChange(updateSun)
+sunFolder.add(sunParams, 'orientation', - Math.PI, Math.PI, 0.001).name('Orientation').onChange(updateSun)
+
 
 // --- Seed du terrain (reproductible via alea) ---
 
