@@ -6,6 +6,8 @@ import './style.css'
 
 import grassVertexShader from './shaders/grass/vertex.glsl'
 import grassFragmentShader from './shaders/grass/fragment.glsl'
+import rainVertexShader from './shaders/rain/vertex.glsl'
+import rainFragmentShader from './shaders/rain/fragment.glsl'
 
 import { createNoise2D } from 'simplex-noise';
 import alea from 'alea';
@@ -98,11 +100,43 @@ function rebuildTerrain() {
   floor.geometry = floorGeometry
   applyTerrainHeights()
   buildGrass() // l'herbe doit se replacer sur le nouveau terrain
+  buildRain()  // la boîte de pluie et le nombre de gouttes dépendent de la taille
 }
 
 applyTerrainHeights();
 
 
+/**
+ * SUN
+ */
+
+// Paramètres de la trajectoire du soleil (arc incliné)
+const sunParams = {
+  dayTime: Math.PI * 0.5,   // position SUR l'arc : 0 = lever (horizon Est), PI/2 = midi (point haut), PI = coucher (horizon Ouest), PI..2PI = sous l'horizon
+  inclination: 0.6,         // inclinaison du PLAN de l'arc : 0 = passe par le zénith, plus grand = arc penché (culmine plus bas, vers le Sud)
+  orientation: 0.0,         // azimut : fait pivoter tout l'arc (l'axe lever→coucher) autour de la verticale
+}
+
+const sunDirection = new THREE.Vector3();
+
+// Axes de rotation réutilisés (évite d'allouer un Vector3 à chaque appel)
+const SUN_AXIS_X = new THREE.Vector3(1, 0, 0) // axe Est-Ouest : sert à incliner le plan de l'arc
+const SUN_AXIS_Y = new THREE.Vector3(0, 1, 0) // axe vertical : sert à orienter l'arc (azimut)
+
+// Debug
+const debugSun = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(0.1, 2),
+    new THREE.MeshBasicMaterial()
+)
+scene.add(debugSun);
+// Lights
+const ambientLight = new THREE.AmbientLight('#ffffff', 0.4)
+scene.add(ambientLight)
+
+const ambientLightCustom = 0.4;
+
+const directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
+scene.add(directionalLight)
 
 
 /**
@@ -147,13 +181,34 @@ function buildBladeGeometry() {
 
 let bladeGeometry = buildBladeGeometry();
 
+/**
+ * WIND — direction de vent globale, partagée par l'herbe et la pluie.
+ * Source unique de vérité : un Vector2 dans le plan XZ (x -> axe X monde, y -> axe Z).
+ */
+const windParams = {
+  angle: 0,       // direction du vent dans le plan XZ (radians) : 0 = +X, PI/2 = +Z
+  strength: 0.15, // force du balancement de l'herbe (ancien uWindStrength)
+}
+
+// windDirection est partagé PAR RÉFÉRENCE avec l'uniform de l'herbe et lu par buildRain().
+const windDirection = new THREE.Vector2(Math.cos(windParams.angle), Math.sin(windParams.angle))
+
+// Recalcule la direction et répercute sur les deux consommateurs.
+function updateWind() {
+  windDirection.set(Math.cos(windParams.angle), Math.sin(windParams.angle)) // met aussi à jour l'uniform (même réf)
+  grassUniforms.uWindStrength.value = windParams.strength
+  buildRain() // la direction de la pluie est FIGÉE dans la géométrie -> régénérer
+}
+
 const grassUniforms = {
   uTime: { value: 0 },
-  uWindStrength: { value: 0.15 },
+  uWindStrength: { value: windParams.strength },
+  uWindDirection: { value: windDirection }, // même objet que windDirection : maj live via updateWind
   uBladeHeight: { value: grassParams.BLADE_H }, // hauteur locale du brin : sert à calculer la pente du vent pour la normale
   uBaseColor: { value: new THREE.Color('#1f5c2e') }, // vert foncé à la base
   uTipColor: { value: new THREE.Color('#8fd152') },  // vert clair à la pointe
   uSunDirection: new THREE.Uniform(new THREE.Vector3(0, 0, 1)),
+  uAmbientLight: new THREE.Uniform(ambientLightCustom), 
 }
 
 const grassMaterial = new THREE.ShaderMaterial({
@@ -220,35 +275,6 @@ function rebuildBlades() {
 }
 
 
-/**
- * SUN
- */
-
-// Paramètres de la trajectoire du soleil (arc incliné)
-const sunParams = {
-  dayTime: Math.PI * 0.5,   // position SUR l'arc : 0 = lever (horizon Est), PI/2 = midi (point haut), PI = coucher (horizon Ouest), PI..2PI = sous l'horizon
-  inclination: 0.6,         // inclinaison du PLAN de l'arc : 0 = passe par le zénith, plus grand = arc penché (culmine plus bas, vers le Sud)
-  orientation: 0.0,         // azimut : fait pivoter tout l'arc (l'axe lever→coucher) autour de la verticale
-}
-
-const sunDirection = new THREE.Vector3();
-
-// Axes de rotation réutilisés (évite d'allouer un Vector3 à chaque appel)
-const SUN_AXIS_X = new THREE.Vector3(1, 0, 0) // axe Est-Ouest : sert à incliner le plan de l'arc
-const SUN_AXIS_Y = new THREE.Vector3(0, 1, 0) // axe vertical : sert à orienter l'arc (azimut)
-
-// Debug
-const debugSun = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.1, 2),
-    new THREE.MeshBasicMaterial()
-)
-scene.add(debugSun);
-// Lights
-const ambientLight = new THREE.AmbientLight('#ffffff', 0.0)
-scene.add(ambientLight)
-
-const directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
-scene.add(directionalLight)
 
 // Update : recalcule la direction du soleil à partir des 3 paramètres.
 const updateSun = () =>
@@ -278,6 +304,107 @@ const updateSun = () =>
 
 updateSun();
 
+/**
+ *  RAIN
+ */
+
+const rainParams = {
+  rainHeight: 20,   // hauteur de la colonne de pluie
+  density: 0.06,    // gouttes par unité de volume
+  length: 0.5,      // longueur d'un trait de pluie
+  windFactor: 6,    // sensibilité de l'inclinaison de la pluie au vent (réglage à l'œil)
+  speedMin: 8,      // vitesse de chute minimale (unités/s)
+  speedMax: 14,     // vitesse de chute maximale (unités/s)
+}
+
+const rainUniforms = {
+  uTime: { value: 0 },
+  uOpacity: { value: 0.5 },                                  // fondu global (transition beau <-> pluie)
+  uColor: { value: new THREE.Color('#cfe3ff') },             // teinte de pluie (gris bleuté)
+  uFallDirection: { value: new THREE.Vector3(0, -1, 0) },    // recalculé dans buildRain
+  uFallDistance: { value: rainParams.rainHeight },           // recalculé dans buildRain
+  uSunDirection: { value: sunDirection },                    // partagé (réf) : muté en place par updateSun
+  uAmbientLight: { value: ambientLightCustom }, 
+  uOpacity: { value: 0.9 }        // utilisé pour démarer et aretté la pluie en douceur
+}
+
+const rainGeometry = new THREE.BufferGeometry();
+const rainMaterial = new THREE.ShaderMaterial({
+  vertexShader: rainVertexShader,
+  fragmentShader: rainFragmentShader,
+  uniforms: rainUniforms,
+  transparent: true,
+  depthWrite: false, 
+})
+const rain = new THREE.LineSegments(rainGeometry, rainMaterial);
+scene.add(rain);
+
+// (Re)génère les segments de pluie. L'inclinaison ET la direction du vent sont
+// FIGÉES dans la géométrie, donc on régénère quand la force/direction du vent
+// OU la taille du terrain change.
+function buildRain() {
+  const halfSize = terrainParams.size / 2; // 16 pour size = 32
+  const box = new THREE.Box3(
+    new THREE.Vector3(-halfSize, 0,                    -halfSize),
+    new THREE.Vector3( halfSize, rainParams.rainHeight, halfSize),
+  );
+
+  // densité ≈ gouttes par unité de volume, constante
+  const volume = (terrainParams.size ** 2) * rainParams.rainHeight;
+  const count  = Math.round(volume * rainParams.density);
+
+  // Inclinaison dérivée de la force du vent : tilt = atan(Vhorizontal / Vchute).
+  // strength 0 -> pluie verticale ; strength fort -> trait de plus en plus couché.
+  const tilt  = Math.atan(windParams.strength * rainParams.windFactor);
+  const horiz = rainParams.length * Math.sin(tilt); // part horizontale du trait
+  const vert  = rainParams.length * Math.cos(tilt); // part verticale du trait
+
+  const positions = new Float32Array(count * 6); // 2 sommets (tête/queue) x 3 coords
+  const speeds    = new Float32Array(count * 2); // 1 par sommet
+  const offsets   = new Float32Array(count * 2);
+  const alphas    = new Float32Array(count * 2);
+
+  for (let i = 0; i < count; i++) {
+    const startX = THREE.MathUtils.randFloat(box.min.x, box.max.x);
+    const startY = THREE.MathUtils.randFloat(box.min.y, box.max.y);
+    const startZ = THREE.MathUtils.randFloat(box.min.z, box.max.z);
+
+    const i6 = i * 6; // 6 composantes par segment (2 sommets x 3 coords)
+    // Tête = point de départ (mène la chute)
+    positions[i6]     = startX;
+    positions[i6 + 1] = startY;
+    positions[i6 + 2] = startZ;
+    // Queue : plus haute (vert) et EN ARRIÈRE du vent (la traînée traîne derrière la goutte).
+    positions[i6 + 3] = startX - horiz * windDirection.x;
+    positions[i6 + 4] = startY + vert;
+    positions[i6 + 5] = startZ - horiz * windDirection.y;
+
+    // Attributs par sommet : aSpeed/aOffset IDENTIQUES tête+queue -> le trait reste rigide.
+    const speed  = THREE.MathUtils.randFloat(rainParams.speedMin, rainParams.speedMax);
+    const offset = THREE.MathUtils.randFloat(0, rainParams.rainHeight); // désync du recyclage
+    const v = i * 2; // index du sommet tête ; queue = v + 1
+    speeds[v]  = speed;  speeds[v + 1]  = speed;
+    offsets[v] = offset; offsets[v + 1] = offset;
+    alphas[v]  = 1.0;    alphas[v + 1]  = 0.0; // tête opaque -> queue transparente
+  }
+
+  rainGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  rainGeometry.setAttribute('aSpeed',  new THREE.BufferAttribute(speeds, 1));
+  rainGeometry.setAttribute('aOffset', new THREE.BufferAttribute(offsets, 1));
+  rainGeometry.setAttribute('aAlpha',  new THREE.BufferAttribute(alphas, 1));
+
+  // Direction de chute = opposée au trait (la goutte glisse le long de sa propre ligne) :
+  // vers le bas (-cos) et vers le vent (+windDirection * sin). Vecteur déjà unitaire.
+  rainUniforms.uFallDirection.value.set(
+    Math.sin(tilt) * windDirection.x,
+    -Math.cos(tilt),
+    Math.sin(tilt) * windDirection.y,
+  );
+  rainUniforms.uFallDistance.value = rainParams.rainHeight;
+}
+
+buildRain();
+
 // Controls
 const controls = new OrbitControls(camera, canvas)
 controls.enableDamping = true
@@ -302,6 +429,11 @@ const sunFolder = gui.addFolder('Soleil')
 sunFolder.add(sunParams, 'dayTime', 0, Math.PI * 2, 0.001).name('Heure (arc)').onChange(updateSun)
 sunFolder.add(sunParams, 'inclination', 0, Math.PI * 0.5, 0.001).name('Inclinaison').onChange(updateSun)
 sunFolder.add(sunParams, 'orientation', - Math.PI, Math.PI, 0.001).name('Orientation').onChange(updateSun)
+
+// GUI — Vent (direction + force partagées par l'herbe ET la pluie)
+const windFolder = gui.addFolder('Vent')
+windFolder.add(windParams, 'angle', -Math.PI, Math.PI, 0.001).name('Direction').onChange(updateWind)
+windFolder.add(windParams, 'strength', 0, 1, 0.01).name('Force').onChange(updateWind)
 
 
 // --- Seed du terrain (reproductible via alea) ---
@@ -335,9 +467,13 @@ const grassFolder = gui.addFolder('Herbe')
 grassFolder.add(grassParams, 'count', 1000, 300000, 1000).name('Nombre de brins').onFinishChange(buildGrass)
 grassFolder.add(grassParams, 'BLADE_W', 0.01, 0.5, 0.01).name('Largeur brin').onChange(rebuildBlades)
 grassFolder.add(grassParams, 'BLADE_H', 0.1, 3, 0.05).name('Hauteur brin').onChange(rebuildBlades)
-grassFolder.add(grassUniforms.uWindStrength, 'value', 0, 1, 0.01).name('Force du vent')
 grassFolder.addColor({ base: '#1f5c2e' }, 'base').name('Couleur base').onChange((v) => grassUniforms.uBaseColor.value.set(v))
 grassFolder.addColor({ tip: '#8fd152' }, 'tip').name('Couleur pointe').onChange((v) => grassUniforms.uTipColor.value.set(v))
+
+// GUI — Pluie
+const rainFolder = gui.addFolder('Pluie')
+rainFolder.add(rainParams, 'density', 0, 0.3, 0.005).name('Densité').onFinishChange(buildRain)
+rainFolder.add(rainParams, 'windFactor', 0, 20, 0.5).name('Sensibilité au vent').onFinishChange(buildRain)
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
@@ -362,8 +498,9 @@ const clock = new THREE.Clock()
 const tick = () => {
   const elapsedTime = clock.getElapsedTime()
 
-  // Anime le vent de l'herbe
+  // Anime le vent de l'herbe et la chute de la pluie
   grassUniforms.uTime.value = elapsedTime
+  rainUniforms.uTime.value = elapsedTime
 
   // Update controls (requis pour le damping)
   controls.update()

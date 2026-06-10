@@ -1,6 +1,7 @@
 uniform float uTime;
 uniform float uWindStrength;
 uniform float uBladeHeight; // hauteur locale du brin : convertit la pente du vent en angle correct
+uniform vec2 uWindDirection; // direction du vent dans le plan XZ (x -> axe X monde, y -> axe Z monde)
 
 // Masque de courbure préparé sur la géométrie : 0 à la base -> 1 à la pointe.
 // (instanceMatrix, position, projectionMatrix... sont injectés par three.js)
@@ -20,7 +21,10 @@ void main() {
   // La base (windMask = 0) reste plantée dans le sol.
   float windMask = color.x;
   float wave = sin(uTime * 1.5 + modelPosition.x * 0.5 + modelPosition.z * 0.5);
-  modelPosition.x += wave * windMask * uWindStrength;
+  // Décalage dans le plan XZ, orienté par la direction de vent globale (avant : X seul)
+  vec2 windOffset = uWindDirection * (wave * windMask * uWindStrength);
+  modelPosition.x += windOffset.x;
+  modelPosition.z += windOffset.y;
 
   // Normale dans l'espace monde (instanceMatrix inclus, sinon tous les brins s'éclairent pareil)
   vec3 modelNormal = normalize((modelMatrix * instanceMatrix * vec4(normal, 0.0)).xyz);
@@ -32,8 +36,9 @@ void main() {
   float worldHeight = scaleY * uBladeHeight;        // hauteur du brin dans le monde
   float windSlope = wave * uWindStrength / worldHeight;
 
-  // Cisaillement de x par y => la normale bascule : n.y -= pente * n.x
-  modelNormal.y -= windSlope * modelNormal.x;
+  // Cisaillement horizontal (suivant uWindDirection) par y => la normale bascule.
+  // Cas X seul : n.y -= pente * n.x. Généralisé : n.y -= pente * (d.x*n.x + d.z*n.z).
+  modelNormal.y -= windSlope * (uWindDirection.x * modelNormal.x + uWindDirection.y * modelNormal.z);
   modelNormal = normalize(modelNormal);
 
   gl_Position = projectionMatrix * modelViewMatrix * modelPosition;
