@@ -119,7 +119,7 @@ export default class Grass extends WorldComponent {
   }
 
   // Reconstruit la géométrie du brin (largeur/hauteur) et la branche sur l'herbe
-  // existante. Pas de re-sampling : seul le mesh source change, les instances restent.
+  // Utilisé dans le GUI pour modifier params.BLADE_W / params.BLADE_H en live.
   rebuildBlades() {
     const old = this.bladeGeometry
     this.bladeGeometry = this.buildBladeGeometry()
