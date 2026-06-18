@@ -21,7 +21,7 @@ void main() {
   // vColor.x : 0 à la base -> 1 à la pointe. Dégradé vertical du brin.
   vec3 col = mix(uBaseColor, uTipColor, vColor.x);
   col *= max(diffuse, AmbientLight); // éclairage : diffuse + ambiant (pas de spéculaire pour un rendu stylisé)
-  col = smoothstep(0.1, 0.8, col); // Accentue les contrastes pour un rendu plus stylisé*
+  col = smoothstep(0.1, 0.9, col); // Accentue les contrastes pour un rendu plus stylisé*
   
   //Specular
   float specularFilter = pow(vColor.x, 30.0);

@@ -67,8 +67,8 @@ export default class Grass extends WorldComponent {
       uWindStrength: { value: this.wind.params.strength },
       uWindDirection: { value: this.wind.direction }, // même objet que Wind.direction : maj live
       uBladeHeight: { value: this.params.BLADE_H },   // hauteur locale du brin : sert à calculer la pente du vent pour la normale
-      uBaseColor: { value: new THREE.Color('#1f5c2e') }, // vert foncé à la base
-      uTipColor: { value: new THREE.Color('#8fd152') },  // vert clair à la pointe
+      uBaseColor: { value: new THREE.Color('#3f706a') }, // vert foncé à la base
+      uTipColor: { value: new THREE.Color('#a6d6cc') },  // vert clair à la pointe
       uSunDirection: { value: this.environment.sunDirection }, // partagé (réf) : muté en place par updateSun
       uAmbientLight: { value: this.environment.ambientIntensity },
     }
