@@ -41,12 +41,20 @@ export default class Bush extends WorldComponent {
     this.raycaster = new THREE.Raycaster()
     this.instancedMesh = null
 
-    this.texture = new THREE.TextureLoader().load('/textures/leaftest.png')
-    this.texture.colorSpace = THREE.SRGBColorSpace // texture utilisée comme couleur
+    // Les cartes de feuillage : chaque quad en piochera UNE au hasard (voir build()).
+    // Elles sont empilées dans une seule texture array (sampler2DArray) -> 1 seul draw call.
+    // ⚠️ toutes doivent avoir la MÊME taille (idéalement carré, puissance de 2 : 1024x1024).
+    this.leafUrls = [
+      '/textures/leaftest.png',
+      '/textures/leaftest2.png',
+      '/textures/leaftest3.png',
+      '/textures/leaftest4.png',
+    ]
+    this.textureArray = null // rempli par loadTextures() (chargement asynchrone)
 
     this.bladeGeometry = new THREE.PlaneGeometry(1, 1) // UV déjà en [0,1]
     this.setMaterial()
-    this.build()
+    this.loadTextures() // charge le tableau de textures PUIS appelle build()
     this.setSubscriptions()
     this.setDebug()
   }
@@ -55,6 +63,7 @@ export default class Bush extends WorldComponent {
     // alphaTest (discard) plutôt que transparence : le rendu reste OPAQUE,
     // donc pas de tri à gérer, le depth buffer fait le travail.
     this.material = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,   // requis pour sampler2DArray dans le fragment shader
       vertexShader: bushVertexShader,
       fragmentShader: bushFragmentShader,
       side: THREE.DoubleSide,   // quads visibles des deux côtés
@@ -63,9 +72,55 @@ export default class Bush extends WorldComponent {
       uniforms: {
         uSunDirection: { value: this.environment.sunDirection },
         uAmbientLight: { value: this.environment.ambientIntensity },
-        uLeafTexture: { value: this.texture }, // texture de la carte de feuillage
+        uLeafTexture: { value: null }, // tableau de cartes de feuillage (rempli par loadTextures)
       },
     })
+  }
+
+  // Charge les N PNG, les empile dans UNE DataArrayTexture (sampler2DArray),
+  // puis (re)construit le mesh. Chargement asynchrone -> build() appelé dans le callback.
+  loadTextures() {
+    const loader = new THREE.ImageLoader()
+    const images = new Array(this.leafUrls.length)
+    let loaded = 0
+    this.leafUrls.forEach((url, i) => {
+      loader.load(url, (img) => {
+        images[i] = img
+        if (++loaded === this.leafUrls.length) this.buildTextureArray(images)
+      })
+    })
+  }
+
+  buildTextureArray(images) {
+    const w = images[0].width
+    const h = images[0].height
+    const depth = images.length
+
+    // On dessine chaque image dans un canvas pour récupérer ses pixels RGBA bruts.
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+
+    const data = new Uint8Array(w * h * 4 * depth)
+    for (let i = 0; i < depth; i++) {
+      ctx.clearRect(0, 0, w, h)
+      ctx.drawImage(images[i], 0, 0, w, h) // force la même taille pour toutes
+      const pixels = ctx.getImageData(0, 0, w, h).data
+      data.set(pixels, i * w * h * 4) // empile la couche i
+    }
+
+    const tex = new THREE.DataArrayTexture(data, w, h, depth)
+    tex.format = THREE.RGBAFormat
+    tex.colorSpace = THREE.SRGBColorSpace // utilisée comme couleur
+    tex.minFilter = THREE.LinearMipmapLinearFilter
+    tex.magFilter = THREE.LinearFilter
+    tex.generateMipmaps = true
+    tex.needsUpdate = true
+
+    this.textureArray = tex
+    this.material.uniforms.uLeafTexture.value = tex
+    this.build()
   }
 
   // Renvoie la hauteur du terrain (y) à la position (x, z) via un rayon vers le bas.
@@ -88,6 +143,7 @@ export default class Bush extends WorldComponent {
 
     this.sphericalNormals = new Float32Array(total * 3) // normales sphériques pour chaque quad
     this.instanceColors = new Float32Array(total * 3)   // couleur par quad (héritée du buisson)
+    this.textureIndices = new Float32Array(total)       // index de la carte de feuillage (0..N-1) par quad
 
     let i = 0
     for (const bush of this.bushes) {
@@ -115,6 +171,8 @@ export default class Bush extends WorldComponent {
         this.sphericalNormals[i * 3]     = this.dir.x
         this.sphericalNormals[i * 3 + 1] = this.dir.y
         this.sphericalNormals[i * 3 + 2] = this.dir.z
+        // chaque quad pioche une carte de feuillage au hasard
+        this.textureIndices[i] = Math.floor(Math.random() * this.leafUrls.length)
         this.instancedMesh.setMatrixAt(i++, this.dummy.matrix)
       }
     }
@@ -122,6 +180,7 @@ export default class Bush extends WorldComponent {
     this.fillInstanceColors()
     this.bladeGeometry.setAttribute('aSphericalNormal', new THREE.InstancedBufferAttribute(this.sphericalNormals, 3))
     this.bladeGeometry.setAttribute('aColor', new THREE.InstancedBufferAttribute(this.instanceColors, 3))
+    this.bladeGeometry.setAttribute('aTextureIndex', new THREE.InstancedBufferAttribute(this.textureIndices, 1))
     this.instancedMesh.instanceMatrix.needsUpdate = true
     this.scene.add(this.instancedMesh)
   }

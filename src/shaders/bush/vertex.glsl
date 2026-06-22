@@ -1,10 +1,12 @@
 
 attribute vec3 aSphericalNormal;
 attribute vec3 aColor;
+attribute float aTextureIndex;     // quelle carte de feuillage pour ce quad
 
 varying vec2 vUv;
 varying vec3 vSphereNormal;
 varying vec3 vColor;
+varying float vTextureIndex;
 
 void main () {
 
@@ -18,4 +20,5 @@ void main () {
     vUv = uv;
     vSphereNormal = normalize(aSphericalNormal);
     vColor = aColor;
+    vTextureIndex = aTextureIndex;
 }
