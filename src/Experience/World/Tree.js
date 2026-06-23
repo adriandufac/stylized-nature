@@ -29,8 +29,20 @@ export default class Tree extends WorldComponent {
     // sa position monde (x/z ; y = raycast sur le terrain), son décalage vertical
     // et la couleur de son feuillage — propres à CHAQUE arbre.
     this.treeConfigs = [
-      { modelPath: "/models/trunc1.glb", x: -10, z: -8, yOffset: 2.1, color: "#ce6436" },
-      { modelPath: "/models/trunc_oak.glb", x: 8, z: 6, yOffset: 2.1, color: "#ce6436" },
+      {
+        modelPath: "/models/trunc1.glb",
+        x: -5.8,
+        z: 11.4,
+        yOffset: 2.1,
+        color: "#ce6436",
+      },
+      {
+        modelPath: "/models/trunc_oak.glb",
+        x: 8.6,
+        z: -10,
+        yOffset: 1.6,
+        color: "#ce6436",
+      },
     ];
 
     // Paramètres communs du feuillage (partagés par tous les arbres).
@@ -208,7 +220,9 @@ export default class Tree extends WorldComponent {
   setSubscriptions() {
     // Le relief change -> on repose chaque arbre (le feuillage suit, il est dans le sous-groupe).
     this.terrain.on("rebuilt", () => this.trees.forEach((t) => this.place(t)));
-    this.terrain.on("resampled", () => this.trees.forEach((t) => this.place(t)));
+    this.terrain.on("resampled", () =>
+      this.trees.forEach((t) => this.place(t)),
+    );
   }
 
   setDebug(tree) {
@@ -230,9 +244,17 @@ export default class Tree extends WorldComponent {
         .onFinishChange(rebuildAll);
     }
 
-    // Sous-dossier propre à cet arbre : décalage Y et couleur des feuilles.
+    // Sous-dossier propre à cet arbre : position, décalage Y et couleur des feuilles.
     const label = tree.cfg.modelPath.split("/").pop();
     const sub = this._debugFolder.addFolder(label).close();
+    sub
+      .add(tree.cfg, "x", -16, 16, 0.1)
+      .name("Position X")
+      .onChange(() => this.place(tree));
+    sub
+      .add(tree.cfg, "z", -16, 16, 0.1)
+      .name("Position Z")
+      .onChange(() => this.place(tree));
     sub
       .add(tree.cfg, "yOffset", -5, 5, 0.05)
       .name("Décalage Y")

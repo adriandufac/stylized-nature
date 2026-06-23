@@ -5,6 +5,7 @@ import Grass from './Grass.js'
 import Rain from './Rain.js'
 import Bush from './Bush.js'
 import Tree from './Tree.js'
+import Cliff from './Cliff.js'
 
 export default class World {
   constructor() {
@@ -18,6 +19,7 @@ export default class World {
     this.rain = new Rain(this.terrain, this.wind, this.environment)
     this.bush = new Bush(this.terrain, this.wind, this.environment)
     this.tree = new Tree(this.terrain, this.wind, this.environment)
+    this.cliff = new Cliff()
     // futur : this.water = new Water(this.terrain, this.wind, this.environment)
   }
 
