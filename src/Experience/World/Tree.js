@@ -6,16 +6,16 @@ import bushVertexShader from "../../shaders/bush/vertex.glsl";
 import bushFragmentShader from "../../shaders/bush/fragment.glsl";
 
 /**
- * TREE — un arbre = un tronc modélisé sous Blender (.glb) + des amas de feuillage
- * (mêmes quads texturés que Bush) posés au bout des branches.
+ * TREE — gère un ou plusieurs arbres = un tronc modélisé sous Blender (.glb) + des
+ * amas de feuillage (mêmes quads texturés que Bush) posés au bout des branches.
  *
- * Le tronc est chargé en asynchrone (GLTFLoader). On le pose sur le relief via raycast
- * (comme Bush.groundHeightAt). Le feuillage est placé :
- *   - soit aux Empties nommés "tip_*" exportés dans le .glb (méthode recommandée),
- *   - soit, à défaut, en haut de la boîte englobante du tronc (fallback).
+ * Chaque tronc est chargé en asynchrone (GLTFLoader) et posé sur le relief via raycast
+ * (comme Bush.groundHeightAt). Le feuillage est placé aux Empties nommés "tip_*"
+ * exportés dans le .glb. À défaut d'Empty "tip_*", l'arbre n'a pas de feuillage.
  *
- * Tout le feuillage de l'arbre tient dans UN SEUL InstancedMesh (un draw call),
- * en réutilisant le ShaderMaterial des buissons.
+ * Le feuillage de CHAQUE arbre tient dans UN SEUL InstancedMesh (un draw call), en
+ * réutilisant le ShaderMaterial des buissons. Chaque arbre a sa propre géométrie
+ * (les attributs d'instance aSphericalNormal/aColor sont propres à l'InstancedMesh).
  */
 export default class Tree extends WorldComponent {
   constructor(terrain, wind, environment) {
@@ -25,16 +25,20 @@ export default class Tree extends WorldComponent {
     this.wind = wind;
     this.environment = environment;
 
-    // Paramètres de l'arbre. x/z = position monde (y = raycast sur le terrain).
+    // Les arbres à charger : un .glb (mesh = tronc, Empties "tip_*" = feuillage),
+    // sa position monde (x/z ; y = raycast sur le terrain), son décalage vertical
+    // et la couleur de son feuillage — propres à CHAQUE arbre.
+    this.treeConfigs = [
+      { modelPath: "/models/trunc1.glb", x: -10, z: -8, yOffset: 2.1, color: "#ce6436" },
+      { modelPath: "/models/trunc_oak.glb", x: 8, z: 6, yOffset: 2.1, color: "#ce6436" },
+    ];
+
+    // Paramètres communs du feuillage (partagés par tous les arbres).
     this.params = {
-      x: -10,
-      z: -8,
-      yOffset: 2.1,
       scale: 0.1, // échelle globale du tronc importé
       quadsPerTip: 14, // nb de quads de feuillage par bout de branche
       foliageRadius: 1.85, // rayon de l'amas autour de chaque tip
       foliageSize: 2.3, // taille d'une carte de feuillage
-      color: "#ce6436",
     };
 
     // Outils réutilisés (pas d'alloc par quad)
@@ -43,19 +47,16 @@ export default class Tree extends WorldComponent {
     this._color = new THREE.Color();
     this.raycaster = new THREE.Raycaster();
 
-    this.group = new THREE.Group(); // contient le tronc + le feuillage
-    this.trunk = null;
-    this.foliageMesh = null;
-    this.tips = [];
+    this.group = new THREE.Group(); // contient tous les arbres
+    this.trees = []; // { cfg, root, tips, subgroup, foliageMesh }
 
     this.texture = new THREE.TextureLoader().load("/textures/leaftest.png");
     this.texture.colorSpace = THREE.SRGBColorSpace;
 
-    this.bladeGeometry = new THREE.PlaneGeometry(1, 1);
     this.setFoliageMaterial();
     this.scene.add(this.group);
 
-    this.load();
+    this.loadAll();
     this.setSubscriptions();
   }
 
@@ -84,79 +85,80 @@ export default class Tree extends WorldComponent {
     return hit ? hit.point.y : 0;
   }
 
-  load() {
+  loadAll() {
+    for (const cfg of this.treeConfigs) this.loadOne(cfg);
+  }
+
+  loadOne(cfg) {
     const loader = new GLTFLoader();
     loader.load(
-      "/models/trunc1.glb",
+      cfg.modelPath,
       (gltf) => {
         const root = gltf.scene;
         root.scale.setScalar(this.params.scale);
 
         // Collecte : les meshes = tronc ; les Empties "tip_*" = points de feuillage.
-        this.tips = [];
         const tips = [];
         root.traverse((child) => {
           if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
           } else if (child.name.toLowerCase().startsWith("tip")) {
-            tips.push(child);
+            tips.push(child.position.clone().multiplyScalar(this.params.scale));
           }
         });
 
-        if (tips.length) {
-          for (const t of tips) {
-            this.tips.push(
-              t.position.clone().multiplyScalar(this.params.scale),
-            );
-          }
-        }
+        // Sous-groupe propre à cet arbre (positionné indépendamment sur le relief).
+        const subgroup = new THREE.Group();
+        subgroup.add(root);
+        this.group.add(subgroup);
 
-        this.trunk = root;
-        this.group.add(this.trunk);
-        this.place(); // pose l'arbre sur le terrain
-        this.buildFoliage();
-        this.setDebug();
+        const tree = { cfg, root, tips, subgroup, foliageMesh: null };
+        this.trees.push(tree);
+
+        this.place(tree); // pose l'arbre sur le terrain
+        this.buildFoliage(tree);
+        this.setDebug(tree);
       },
       undefined,
-      (err) => console.error("Échec du chargement de /models/trunc1.glb", err),
+      (err) => console.error("Échec du chargement de " + cfg.modelPath, err),
     );
   }
 
-  // Positionne le groupe entier (tronc + feuillage) au pied, sur le relief.
-  place() {
-    const y = this.groundHeightAt(this.params.x, this.params.z);
-    this.group.position.set(
-      this.params.x,
-      y + this.params.yOffset,
-      this.params.z,
-    );
+  // Positionne le sous-groupe d'un arbre (tronc + feuillage) au pied, sur le relief.
+  place(tree) {
+    const { x, z, yOffset } = tree.cfg;
+    const y = this.groundHeightAt(x, z);
+    tree.subgroup.position.set(x, y + yOffset, z);
   }
 
-  // Construit l'InstancedMesh du feuillage : quadsPerTip quads autour de chaque tip.
-  buildFoliage() {
-    if (this.foliageMesh) {
-      this.group.remove(this.foliageMesh);
-      this.foliageMesh.dispose();
+  // Construit l'InstancedMesh du feuillage d'un arbre : quadsPerTip quads par tip.
+  buildFoliage(tree) {
+    if (tree.foliageMesh) {
+      tree.subgroup.remove(tree.foliageMesh);
+      tree.foliageMesh.geometry.dispose();
+      tree.foliageMesh = null;
     }
-    if (!this.tips.length) return;
+    if (!tree.tips.length) return;
 
-    const total = this.tips.length * this.params.quadsPerTip;
-    this.foliageMesh = new THREE.InstancedMesh(
-      this.bladeGeometry,
+    const total = tree.tips.length * this.params.quadsPerTip;
+    // Géométrie propre à cet arbre : elle porte ses attributs d'instance.
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    const foliageMesh = new THREE.InstancedMesh(
+      geometry,
       this.foliageMaterial,
       total,
     );
 
     const sphericalNormals = new Float32Array(total * 3);
     const colors = new Float32Array(total * 3);
-    this._color.set(this.params.color);
+    this._color.set(tree.cfg.color);
     const cr = this._color.r,
       cg = this._color.g,
       cb = this._color.b;
 
     let i = 0;
-    for (const tip of this.tips) {
+    for (const tip of tree.tips) {
       for (let q = 0; q < this.params.quadsPerTip; q++) {
         // Direction aléatoire dans une SPHÈRE COMPLÈTE (y de -1 à 1) : l'amas est
         // CENTRÉ sur le bout de branche (contrairement à Bush, posé au sol, qui
@@ -166,7 +168,7 @@ export default class Tree extends WorldComponent {
         const ring = Math.sqrt(1 - yv * yv);
         this.dir.set(Math.cos(angle) * ring, yv, Math.sin(angle) * ring);
 
-        // Position LOCALE (dans le groupe de l'arbre) = tip + offset dans l'amas.
+        // Position LOCALE (dans le sous-groupe de l'arbre) = tip + offset dans l'amas.
         // Pas de décalage vertical : la touffe est centrée sur l'ancre.
         this.dummy.position
           .copy(tip)
@@ -186,57 +188,58 @@ export default class Tree extends WorldComponent {
         colors[i * 3] = cr;
         colors[i * 3 + 1] = cg;
         colors[i * 3 + 2] = cb;
-        this.foliageMesh.setMatrixAt(i++, this.dummy.matrix);
+        foliageMesh.setMatrixAt(i++, this.dummy.matrix);
       }
     }
 
-    this.bladeGeometry.setAttribute(
+    geometry.setAttribute(
       "aSphericalNormal",
       new THREE.InstancedBufferAttribute(sphericalNormals, 3),
     );
-    this.bladeGeometry.setAttribute(
+    geometry.setAttribute(
       "aColor",
       new THREE.InstancedBufferAttribute(colors, 3),
     );
-    this.foliageMesh.instanceMatrix.needsUpdate = true;
-    this.group.add(this.foliageMesh);
+    foliageMesh.instanceMatrix.needsUpdate = true;
+    tree.subgroup.add(foliageMesh);
+    tree.foliageMesh = foliageMesh;
   }
 
   setSubscriptions() {
-    // Le relief change -> on repose l'arbre (le feuillage suit, il est dans le groupe).
-    this.terrain.on("rebuilt", () => this.trunk && this.place());
-    this.terrain.on("resampled", () => this.trunk && this.place());
+    // Le relief change -> on repose chaque arbre (le feuillage suit, il est dans le sous-groupe).
+    this.terrain.on("rebuilt", () => this.trees.forEach((t) => this.place(t)));
+    this.terrain.on("resampled", () => this.trees.forEach((t) => this.place(t)));
   }
 
-  setDebug() {
-    const folder = this.debug.ui.addFolder("Arbre").close();
-    folder
-      .add(this.params, "x", -16, 16, 0.5)
-      .name("Position X")
-      .onFinishChange(() => this.place());
-    folder
-      .add(this.params, "z", -16, 16, 0.5)
-      .name("Position Z")
-      .onFinishChange(() => this.place());
-    folder
-      .add(this.params, "yOffset", -5, 5, 0.05)
+  setDebug(tree) {
+    // Dossier racine "Arbres" + contrôles communs, créés une seule fois.
+    if (!this._debugFolder) {
+      this._debugFolder = this.debug.ui.addFolder("Arbres").close();
+      const rebuildAll = () => this.trees.forEach((t) => this.buildFoliage(t));
+      this._debugFolder
+        .add(this.params, "quadsPerTip", 1, 40, 1)
+        .name("Quads / branche")
+        .onFinishChange(rebuildAll);
+      this._debugFolder
+        .add(this.params, "foliageRadius", 0.2, 4, 0.05)
+        .name("Rayon feuillage")
+        .onFinishChange(rebuildAll);
+      this._debugFolder
+        .add(this.params, "foliageSize", 0.3, 4, 0.05)
+        .name("Taille feuille")
+        .onFinishChange(rebuildAll);
+    }
+
+    // Sous-dossier propre à cet arbre : décalage Y et couleur des feuilles.
+    const label = tree.cfg.modelPath.split("/").pop();
+    const sub = this._debugFolder.addFolder(label).close();
+    sub
+      .add(tree.cfg, "yOffset", -5, 5, 0.05)
       .name("Décalage Y")
-      .onChange(() => this.place());
-    folder
-      .add(this.params, "quadsPerTip", 1, 40, 1)
-      .name("Quads / branche")
-      .onFinishChange(() => this.buildFoliage());
-    folder
-      .add(this.params, "foliageRadius", 0.2, 4, 0.05)
-      .name("Rayon feuillage")
-      .onFinishChange(() => this.buildFoliage());
-    folder
-      .add(this.params, "foliageSize", 0.3, 4, 0.05)
-      .name("Taille feuille")
-      .onFinishChange(() => this.buildFoliage());
-    folder
-      .addColor(this.params, "color")
+      .onChange(() => this.place(tree));
+    sub
+      .addColor(tree.cfg, "color")
       .name("Couleur")
-      .onFinishChange(() => this.buildFoliage());
+      .onFinishChange(() => this.buildFoliage(tree));
   }
 }
