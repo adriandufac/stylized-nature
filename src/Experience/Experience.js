@@ -5,6 +5,7 @@ import Time from './Utils/Time.js'
 import Camera from './Camera.js'
 import Renderer from './Renderer.js'
 import World from './World/World.js'
+import Exporter from './Exporter.js'
 
 let instance = null
 
@@ -23,6 +24,9 @@ export default class Experience {
     this.camera = new Camera()
     this.renderer = new Renderer()
     this.world = new World()
+
+    // Outil d'export .glb (terrain + falaise) comme référence pour Blender.
+    this.exporter = new Exporter([this.world.terrain.mesh, this.world.cliff.group])
 
     this.sizes.on('resize', () => this.resize())
     this.time.on('tick', () => this.update())
