@@ -31,17 +31,17 @@ export default class Tree extends WorldComponent {
     this.treeConfigs = [
       {
         modelPath: "/models/trunc1.glb",
-        x: -5.8,
+        x: -10.9,
         z: 11.4,
         yOffset: 2.1,
         color: "#ce6436",
       },
       {
         modelPath: "/models/trunc_oak.glb",
-        x: 8.6,
-        z: -10,
-        yOffset: 1.6,
-        color: "#ce6436",
+        x: 13.1,
+        z: -2.8,
+        yOffset: 1.85,
+        color: "#90187a",
       },
     ];
 
