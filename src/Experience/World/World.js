@@ -22,7 +22,7 @@ export default class World {
     this.tree = new Tree(this.terrain, this.wind, this.environment);
     this.cliff = new Cliff();
     // this.water = new Water();   // version depth texture (écume basée sur la vraie profondeur)
-    this.water = new Water2(); // version "façon tuto Codrops" (vignette + Perlin, sans depth)
+    this.water = new Water2(this.environment, this.wind); // version "façon tuto Codrops" (vignette + Perlin, sans depth)
   }
 
   update() {

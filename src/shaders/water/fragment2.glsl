@@ -17,11 +17,21 @@ uniform vec3  uFoamColor;
 uniform float uVignette;        // intensité du dégradé centre->bord
 uniform float uNoiseScale;      // densité des bandes de surface
 uniform float uNoiseThreshold;  // seuil d'apparition des bandes (0..1)
-uniform float uNoiseSpeed;      // vitesse de défilement du motif
 uniform float uFoamWidth;       // largeur de l'écume de berge (en UV)
 
-uniform vec2  uFlowDirection;   // direction du courant (rivière/cascade)
-uniform float uFlowSpeed;       // 0 pour le lac
+uniform vec2  uFlowDirection;   // direction du courant
+uniform float uFlowSpeed;       // vitesse de défilement du motif le long du courant
+
+// ── Lumière (même logique manuelle que les shaders herbe/buisson) ───────────
+uniform vec3  uSunDirection;    // direction du soleil (monde), partagée avec Environment
+uniform vec3  uSunColor;        // teinte de la lumière directe
+uniform float uAmbient;         // lumière ambiante (0..1)
+uniform float uNormalStrength;  // amplitude de la perturbation de normale (rides)
+uniform float uSpecStrength;    // intensité des éclats spéculaires
+uniform float uShininess;       // dureté des éclats (plus grand = plus serré)
+uniform float uFresnelPower;    // brillance aux angles rasants
+
+// cameraPosition est fourni automatiquement par three.js (ShaderMaterial)
 
 varying vec2 vUv;
 varying vec3 vWorldPos;
@@ -53,8 +63,8 @@ float snoise(vec2 v) {
 }
 
 void main() {
-  // défilement : temps + courant éventuel
-  vec2 flow = uFlowDirection * uFlowSpeed * uTime;
+  // défilement : tout le mouvement de surface suit uFlowDirection à uFlowSpeed.
+  vec2 flow = uFlowDirection * uTime * uFlowSpeed;
 
   // 1) DÉGRADÉ PAR VIGNETTE (cf. tuto) -----------------------------------------
   float vignette = length(vUv - 0.5) * uVignette;
@@ -62,7 +72,8 @@ void main() {
   vec3 color = mix(uColorFar, uColorNear, v); // centre = far, bords = near
 
   // 2) MOTIF DE SURFACE QUI DÉFILE ---------------------------------------------
-  float n = snoise(vUv * uNoiseScale + flow + uTime * uNoiseSpeed);
+  vec2 p = vUv * uNoiseScale + flow;
+  float n = snoise(p);
   n = n * 0.5 + 0.5; // 0..1
   // bandes claires stylisées : on illumine là où le bruit dépasse le seuil
   float bands = smoothstep(uNoiseThreshold, uNoiseThreshold + 0.08, n);
@@ -81,6 +92,34 @@ void main() {
 
   float foam = clamp(max(crestFoam, shoreFoam), 0.0, 1.0);
   color = mix(color, uFoamColor, foam);
+
+  // 4) LUMIÈRE -----------------------------------------------------------------
+  // Normale perturbée par le gradient du bruit (rides) sur un plan horizontal.
+  float eps = 0.5;
+  float nx = snoise(p + vec2(eps, 0.0));
+  float nz = snoise(p + vec2(0.0, eps));
+  vec3 normal = normalize(vec3(
+    -(nx - (n * 2.0 - 1.0)) * uNormalStrength,
+    1.0,
+    -(nz - (n * 2.0 - 1.0)) * uNormalStrength
+  ));
+
+  vec3 sunDir  = normalize(uSunDirection);
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  float dayFactor = smoothstep(-0.1, 0.5, sunDir.y); // nuit -> 0
+
+  // Diffus half-lambert (doux : la surface reste quasi horizontale)
+  float diffuse = max(dot(normal, sunDir) * 0.5 + 0.5, 0.0) * dayFactor;
+  color *= max(uAmbient, diffuse);
+
+  // Spéculaire Blinn-Phong : les éclats scintillants qui font "lire" l'eau
+  vec3 halfDir = normalize(sunDir + viewDir);
+  float spec = pow(max(dot(normal, halfDir), 0.0), uShininess);
+  color += uSunColor * spec * uSpecStrength * dayFactor;
+
+  // Fresnel : la surface s'éclaircit aux angles rasants
+  float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), uFresnelPower);
+  color = mix(color, color + uFoamColor * 0.25, fresnel * dayFactor);
 
   gl_FragColor = vec4(color, 0.92);
 }
