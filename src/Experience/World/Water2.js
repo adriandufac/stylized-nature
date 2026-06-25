@@ -79,7 +79,7 @@ export default class Water2 extends WorldComponent {
         waveAmplitude: 0.0,
         waveFrequency: 1.5,
         waveSpeed: 0.8,
-        flowDirection: new THREE.Vector2(0, -1),
+        flowDirection: new THREE.Vector2(0, 1), // vers le bas (chute)
         flowSpeed: 1.4,
       },
       small_fall: {
@@ -94,7 +94,7 @@ export default class Water2 extends WorldComponent {
         waveAmplitude: 0.0,
         waveFrequency: 1.5,
         waveSpeed: 0.8,
-        flowDirection: new THREE.Vector2(0, -1),
+        flowDirection: new THREE.Vector2(0, 1), // vers le bas (chute)
         flowSpeed: 1.4,
       },
     };
