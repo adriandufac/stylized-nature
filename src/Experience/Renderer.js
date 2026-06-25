@@ -41,7 +41,8 @@ export default class Renderer {
 
   update() {
     const water = this.experience.world?.water;
-    if (water && water.meshes.length) {
+    // Water2 (méthode tuto) n'utilise pas la depth texture -> on saute la passe.
+    if (water && water.meshes.length && water.usesDepth !== false) {
       this.depthCapture.capture(water.meshes);
     }
     this.instance.render(this.scene, this.camera.instance);
