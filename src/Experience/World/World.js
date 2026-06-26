@@ -14,8 +14,8 @@ export default class World {
   constructor() {
     // Terrain Environment Wind sont sources de vérité.
     this.terrain = new Terrain();
-     this.environment = new Environment();
-   this.wind = new Wind();
+    this.environment = new Environment();
+    this.wind = new Wind();
 
     this.grass = new Grass(this.terrain, this.wind, this.environment);
     this.rain = new Rain(this.terrain, this.wind, this.environment);
@@ -31,5 +31,6 @@ export default class World {
     this.grass.update();
     this.rain.update();
     this.water.update();
+    this.waterfall.update();
   }
 }
