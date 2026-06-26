@@ -67,7 +67,7 @@ export default class Water2 extends WorldComponent {
         flowSpeed: 0.1, // initial ; recalculé selon le vent (windScaled)
         windScaled: true,
       },
-      big_fall: {
+/*       big_fall: {
         label: "Grande Cascade",
         colorNear: "#7fbfe0",
         colorFar: "#3a7faf",
@@ -96,7 +96,7 @@ export default class Water2 extends WorldComponent {
         waveSpeed: 0.8,
         flowDirection: new THREE.Vector2(0, 1), // vers le bas (chute)
         flowSpeed: 1.4,
-      },
+      }, */
     };
 
     this.load();
@@ -133,8 +133,9 @@ export default class Water2 extends WorldComponent {
           mesh.renderOrder = 1; // l'eau se rend après le solide
           this.meshes.push(mesh);
           this.materials.push(mesh.material);
+          this.scene.attach(mesh);
         }
-        this.scene.add(gltf.scene);
+       /*  this.scene.add(gltf.scene); */
         this.applyWind(); // courant initial selon la force de vent courante
         this.setDebug();
       },

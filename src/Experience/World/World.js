@@ -8,6 +8,7 @@ import Tree from "./Tree.js";
 import Cliff from "./Cliff.js";
 import Water from "./Water.js";
 import Water2 from "./Water2.js";
+import Waterfall from "./Waterfall.js";
 
 export default class World {
   constructor() {
@@ -22,7 +23,8 @@ export default class World {
     this.tree = new Tree(this.terrain, this.wind, this.environment);
     this.cliff = new Cliff();
     // this.water = new Water();   // version depth texture (écume basée sur la vraie profondeur)
-    this.water = new Water2(this.environment, this.wind); // version "façon tuto Codrops" (vignette + Perlin, sans depth)
+    this.water = new Water2(this.environment, this.wind);
+    this.waterfall = new Waterfall(this.environment, this.wind);
   }
 
   update() {
