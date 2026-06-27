@@ -5,6 +5,9 @@ import WorldComponent from "./WorldComponent.js";
 import bushVertexShader from "../../shaders/bush/vertex.glsl";
 import bushFragmentShader from "../../shaders/bush/fragment.glsl";
 
+import truncVertexShader from "../../shaders/trunc/vertex.glsl";
+import truncFragmentShader from "../../shaders/trunc/fragment.glsl";
+
 /**
  * TREE — gère un ou plusieurs arbres = un tronc modélisé sous Blender (.glb) + des
  * amas de feuillage (mêmes quads texturés que Bush) posés au bout des branches.
@@ -53,6 +56,23 @@ export default class Tree extends WorldComponent {
       foliageSize: 2.3, // taille d'une carte de feuillage
     };
 
+    this.style = {
+      barkLow: "#a7adb4", // pied/creux sombre (voir palettes plus bas)
+      barkHigh: "#d9dee2", // haut/crêtes clair
+      grainColor: "#4e5660",
+      grainHoriz: 0.37, // stries serrées (fréquence horizontale)
+      grainVert: 0.06, // très allongées verticalement
+      grainStrength: 0.74,
+      creviceDepth: 0.84,
+      gradientMin: -3.7, // Y OBJET : à régler sur la hauteur réelle du modèle (cf. note)
+      gradientMax: 12.1,
+      rimColor: "#eef4fa",
+      rimStrength: 0.1,
+    };
+
+    this.setTrunkMaterial();
+    this.loadTrunkNoise();
+
     // Outils réutilisés (pas d'alloc par quad)
     this.dummy = new THREE.Object3D();
     this.dir = new THREE.Vector3();
@@ -72,6 +92,31 @@ export default class Tree extends WorldComponent {
     this.setSubscriptions();
   }
 
+  setTrunkMaterial() {
+    this.trunkUniforms = {
+      uBarkLow: { value: new THREE.Color(this.style.barkLow) },
+      uBarkHigh: { value: new THREE.Color(this.style.barkHigh) },
+      uGrainColor: { value: new THREE.Color(this.style.grainColor) },
+      uGrainHoriz: { value: this.style.grainHoriz },
+      uGrainVert: { value: this.style.grainVert },
+      uGrainStrength: { value: this.style.grainStrength },
+      uCreviceDepth: { value: this.style.creviceDepth },
+      uGradientMin: { value: this.style.gradientMin },
+      uGradientMax: { value: this.style.gradientMax },
+      uNoise: { value: null },
+      uSunDirection: { value: this.environment.sunDirection }, // réf partagée
+      uAmbientLight: { value: this.environment.ambientIntensity },
+      uRimColor: { value: new THREE.Color(this.style.rimColor) },
+      uRimStrength: { value: this.style.rimStrength },
+    };
+
+    this.trunkMaterial = new THREE.ShaderMaterial({
+      vertexShader: truncVertexShader,
+      fragmentShader: truncFragmentShader,
+      uniforms: this.trunkUniforms,
+    });
+  }
+
   setFoliageMaterial() {
     this.foliageMaterial = new THREE.ShaderMaterial({
       vertexShader: bushVertexShader,
@@ -84,6 +129,15 @@ export default class Tree extends WorldComponent {
         uAmbientLight: { value: this.environment.ambientIntensity },
         uLeafTexture: { value: this.texture },
       },
+    });
+  }
+
+  loadTrunkNoise() {
+    new THREE.TextureLoader().load("/textures/noiseTexture.png", (tex) => {
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.colorSpace = THREE.NoColorSpace;
+      this.trunkUniforms.uNoise.value = tex;
     });
   }
 
@@ -113,6 +167,8 @@ export default class Tree extends WorldComponent {
         const tips = [];
         root.traverse((child) => {
           if (child.isMesh) {
+            child.material?.dispose(); // libère le matériau exporté de Blender
+            child.material = this.trunkMaterial; // <-- partagé par tous les troncs
             child.castShadow = true;
             child.receiveShadow = true;
           } else if (child.name.toLowerCase().startsWith("tip")) {
@@ -263,5 +319,55 @@ export default class Tree extends WorldComponent {
       .addColor(tree.cfg, "color")
       .name("Couleur")
       .onFinishChange(() => this.buildFoliage(tree));
+    // Contrôles d'écorce : matériau partagé par tous les troncs -> créés UNE seule fois.
+    if (!this._barkFolder) {
+      const bark = this._debugFolder.addFolder("Écorce").close();
+      this._barkFolder = bark;
+      const u = this.trunkUniforms;
+      bark
+        .addColor(this.style, "barkLow")
+        .name("Couleur pied")
+        .onChange((v) => u.uBarkLow.value.set(v));
+      bark
+        .addColor(this.style, "barkHigh")
+        .name("Couleur haut")
+        .onChange((v) => u.uBarkHigh.value.set(v));
+      bark
+        .addColor(this.style, "grainColor")
+        .name("Couleur stries")
+        .onChange((v) => u.uGrainColor.value.set(v));
+      bark
+        .add(this.style, "grainHoriz", 0.05, 3, 0.01)
+        .name("Stries (densité)")
+        .onChange((v) => (u.uGrainHoriz.value = v));
+      bark
+        .add(this.style, "grainVert", 0.01, 0.5, 0.005)
+        .name("Stries (étirement)")
+        .onChange((v) => (u.uGrainVert.value = v));
+      bark
+        .add(this.style, "grainStrength", 0, 1, 0.01)
+        .name("Force stries")
+        .onChange((v) => (u.uGrainStrength.value = v));
+      bark
+        .add(this.style, "creviceDepth", 0, 1, 0.01)
+        .name("Creux")
+        .onChange((v) => (u.uCreviceDepth.value = v));
+      bark
+        .add(this.style, "gradientMin", -5, 30, 0.1)
+        .name("Dégradé pied (Y obj)")
+        .onChange((v) => (u.uGradientMin.value = v));
+      bark
+        .add(this.style, "gradientMax", -5, 40, 0.1)
+        .name("Dégradé haut (Y obj)")
+        .onChange((v) => (u.uGradientMax.value = v));
+      bark
+        .add(this.style, "rimStrength", 0, 1.5, 0.01)
+        .name("Contour lumineux")
+        .onChange((v) => (u.uRimStrength.value = v));
+      bark
+        .addColor(this.style, "rimColor")
+        .name("Couleur contour")
+        .onChange((v) => u.uRimColor.value.set(v));
+    }
   }
 }

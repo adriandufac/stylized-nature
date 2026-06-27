@@ -21,7 +21,7 @@ export default class World {
     this.rain = new Rain(this.terrain, this.wind, this.environment);
     this.bush = new Bush(this.terrain, this.wind, this.environment);
     this.tree = new Tree(this.terrain, this.wind, this.environment);
-    this.cliff = new Cliff();
+    this.cliff = new Cliff(this.environment);
     // this.water = new Water();   // version depth texture (écume basée sur la vraie profondeur)
     this.water = new Water2(this.environment, this.wind);
     this.waterfall = new Waterfall(this.environment, this.wind);
