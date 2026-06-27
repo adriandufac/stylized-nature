@@ -9,6 +9,7 @@ import Cliff from "./Cliff.js";
 import Water from "./Water.js";
 import Water2 from "./Water2.js";
 import Waterfall from "./Waterfall.js";
+import GroundShadow from "./GroundShadow.js";
 
 export default class World {
   constructor() {
@@ -17,10 +18,13 @@ export default class World {
     this.environment = new Environment();
     this.wind = new Wind();
 
-    this.grass = new Grass(this.terrain, this.wind, this.environment);
+    // Ombres au sol rendues sur l'herbe : alimentées par les arbres et les buissons.
+    this.groundShadow = new GroundShadow(this.environment);
+
+    this.grass = new Grass(this.terrain, this.wind, this.environment, this.groundShadow);
     this.rain = new Rain(this.terrain, this.wind, this.environment);
-    this.bush = new Bush(this.terrain, this.wind, this.environment);
-    this.tree = new Tree(this.terrain, this.wind, this.environment);
+    this.bush = new Bush(this.terrain, this.wind, this.environment, this.groundShadow);
+    this.tree = new Tree(this.terrain, this.wind, this.environment, this.groundShadow);
     this.cliff = new Cliff(this.environment);
     // this.water = new Water();   // version depth texture (écume basée sur la vraie profondeur)
     this.water = new Water2(this.environment, this.wind);
@@ -28,6 +32,7 @@ export default class World {
   }
 
   update() {
+    this.groundShadow.update(); // d'abord : calcule les ellipses d'ombre lues par l'herbe
     this.grass.update();
     this.rain.update();
     this.water.update();

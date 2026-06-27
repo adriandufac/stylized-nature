@@ -21,12 +21,13 @@ import truncFragmentShader from "../../shaders/trunc/fragment.glsl";
  * (les attributs d'instance aSphericalNormal/aColor sont propres à l'InstancedMesh).
  */
 export default class Tree extends WorldComponent {
-  constructor(terrain, wind, environment) {
+  constructor(terrain, wind, environment, groundShadow) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
     this.environment = environment;
+    this.groundShadow = groundShadow;
 
     // Les arbres à charger : un .glb (mesh = tronc, Empties "tip_*" = feuillage),
     // sa position monde (x/z ; y = raycast sur le terrain), son décalage vertical
@@ -187,6 +188,14 @@ export default class Tree extends WorldComponent {
         this.place(tree); // pose l'arbre sur le terrain
         this.buildFoliage(tree);
         this.setDebug(tree);
+
+        // Ombre au sol au pied du tronc (hauteur ≈ celle du tronc importé).
+        this.groundShadow?.addAnchor({
+          x: cfg.x,
+          z: cfg.z,
+          radius: 1.2,
+          height: 4,
+        });
       },
       undefined,
       (err) => console.error("Échec du chargement de " + cfg.modelPath, err),

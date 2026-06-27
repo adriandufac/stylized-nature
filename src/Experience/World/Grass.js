@@ -25,12 +25,13 @@ const windBladePower = new Float32Array([
 ]);
 
 export default class Grass extends WorldComponent {
-  constructor(terrain, wind, environment) {
+  constructor(terrain, wind, environment, groundShadow) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
     this.environment = environment;
+    this.groundShadow = groundShadow;
 
     this.params = {
       BLADE_W: 0.1,
@@ -167,6 +168,14 @@ export default class Grass extends WorldComponent {
       uTipColor: { value: new THREE.Color("#a6d6cc") }, // vert clair à la pointe
       uSunDirection: { value: this.environment.sunDirection }, // partagé (réf) : muté en place par updateSun
       uAmbientLight: { value: this.environment.ambientIntensity },
+
+      // Ombres au sol : les brins dans une ellipse d'ombre sont assombris.
+      // Tableaux partagés PAR RÉFÉRENCE avec GroundShadow (il les remplit, on les lit).
+      uShadowDir: { value: this.groundShadow.shadowDir }, // direction horizontale (réf)
+      uShadows: { value: this.groundShadow.ellipses }, // vec4[32] (réf) : (cx, cz, demi-l, demi-L)
+      uShadowCount: { value: 0 }, // nb d'ellipses valides (mis à jour chaque frame)
+      uShadowStrength: { value: 0 }, // 0 la nuit -> 1 le jour (= dayFactor)
+      uShadowDarken: { value: 0.45 }, // luminosité d'un brin pleinement ombragé
     };
 
     this.material = new THREE.ShaderMaterial({
@@ -271,10 +280,20 @@ export default class Grass extends WorldComponent {
       .addColor({ tip: "#8fd152" }, "tip")
       .name("Couleur pointe")
       .onChange((v) => this.uniforms.uTipColor.value.set(v));
+    folder
+      .add(this.uniforms.uShadowDarken, "value", 0, 1, 0.01)
+      .name("Ombre (1 = aucune)");
   }
 
   update() {
     // Anime le balancement du vent
     this.uniforms.uTime.value = this.time.elapsed;
+
+    // mise a jour de l'ombre (le shader prend les uniforms en fonction du groundshadow)
+    const gs = this.groundShadow;
+    if (!gs) return;
+    // primotive donc il faut recopié
+    this.uniforms.uShadowCount.value = gs.count;
+    this.uniforms.uShadowStrength.value = gs.dayFactor;
   }
 }

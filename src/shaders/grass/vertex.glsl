@@ -3,6 +3,12 @@ uniform float uWindStrength;
 uniform float uBladeHeight; // hauteur locale du brin : convertit la pente du vent en angle correct
 uniform vec2 uWindDirection; // direction du vent dans le plan XZ (x -> axe X monde, y -> axe Z monde)
 
+// Ombres au sol (ellipses fournies par GroundShadow)
+const int MAX_SHADOWS = 32;
+uniform vec2 uShadowDir; // direction horizontale de l'ombre (partagée)
+uniform int uShadowCount;
+uniform vec4 uShadows[MAX_SHADOWS]; // (centreX, centreZ, demi-largeur, demi-longueur)
+
 // Masque de courbure préparé sur la géométrie : 0 à la base -> 1 à la pointe.
 // (instanceMatrix, position, projectionMatrix... sont injectés par three.js)
 attribute vec3 color;
@@ -10,6 +16,7 @@ attribute vec3 color;
 varying vec3 vColor;
 varying vec3 vNormal;
 varying vec3 vPosition;
+varying float vShadow; // 0 = au soleil, 1 = pleinement dans une ombre
 
 void main() {
   
@@ -47,4 +54,32 @@ void main() {
   vNormal = modelNormal; // Nécessaire pour l'éclairage dans le fragment shader
   vPosition = modelPosition.xyz;
 
+  /**
+  * OMBRES
+  **/
+  vec2 bladeRoot = vec2(instanceMatrix[3].x, instanceMatrix[3].z);
+  float shadowAmount = 0.0;
+  // Pour chaque brin d'herbe, on vérifie s'il se trouve dans une ellipse d'ombre
+  for (int i = 0; i < MAX_SHADOWS; i++) {
+    if (i < uShadowCount) {
+      vec4 ellipse = uShadows[i];
+      vec2 shadowCenter = ellipse.xy;
+      float halfLength = ellipse.w; // demi-axe le long de l'ombre
+      float halfWidth = ellipse.z;  // demi-axe perpendiculaire
+
+      // Position du brin dans le repère de l'ombre (aligné sur le soleil).
+      vec2 centerToBlade = bladeRoot - shadowCenter;
+      float alongShadow = dot(centerToBlade, uShadowDir);                         // le long de l'ombre
+      float acrossShadow = dot(centerToBlade, vec2(-uShadowDir.y, uShadowDir.x)); // perpendiculaire
+
+      // Équation de l'ellipse : < 1 dedans, = 1 sur le bord, > 1 dehors.
+      float ellipseDistance =
+          (alongShadow * alongShadow) / (halfLength * halfLength) +
+          (acrossShadow * acrossShadow) / (halfWidth * halfWidth);
+
+      // Bord adouci ; un brin prend l'ombre la plus sombre s'il y en a plusieurs.
+      shadowAmount = max(shadowAmount, 1.0 - smoothstep(0.5, 1.0, ellipseDistance));
+    }
+  }
+  vShadow = shadowAmount;
 }

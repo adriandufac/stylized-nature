@@ -14,12 +14,13 @@ import bushFragmentShader from "../../shaders/bush/fragment.glsl";
  * Le billboard / l'éclairage / le vent viendront avec le ShaderMaterial à l'étape suivante.
  */
 export default class Bush extends WorldComponent {
-  constructor(terrain, wind, environment) {
+  constructor(terrain, wind, environment, groundShadow) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
     this.environment = environment;
+    this.groundShadow = groundShadow;
 
     // Buissons placés à la main. Chaque buisson définit TOUS ses paramètres :
     //   x, z   : position monde (le y est calculé par raycast sur le terrain)
@@ -57,6 +58,16 @@ export default class Bush extends WorldComponent {
     this.loadTextures(); // charge le tableau de textures PUIS appelle build()
     this.setSubscriptions();
     this.setDebug();
+
+    // Une ombre au sol par buisson (empreinte ≈ rayon de l'amas, hauteur ≈ taille des cartes).
+    for (const b of this.bushes) {
+      this.groundShadow?.addAnchor({
+        x: b.x,
+        z: b.z,
+        radius: b.radius + b.size * 0.4,
+        height: b.size,
+      });
+    }
   }
 
   setMaterial() {

@@ -3,9 +3,13 @@ uniform vec3 uTipColor;
 uniform vec3 uSunDirection;
 uniform float uAmbientLight;
 
+uniform float uShadowStrength; // 0 la nuit -> 1 le jour
+uniform float uShadowDarken;   // luminosité d'un brin pleinement ombragé (0 = noir)
+
 varying vec3 vColor;
 varying vec3 vNormal;
 varying vec3 vPosition;
+varying float vShadow;
 
 void main() {
 
@@ -34,6 +38,8 @@ void main() {
 
   col += specular * specularFilter * dayFactor * specularStrength; // filtre par la hauteur du brin et l'orientation du soleil
 
+  // Ombre au sol : assombrit le brin dans la zone d'ombre (s'estompe la nuit via uShadowStrength).
+  col *= mix(1.0, uShadowDarken, vShadow * uShadowStrength);
 
   gl_FragColor = vec4(col, 1.0);
 
