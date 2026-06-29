@@ -35,6 +35,8 @@ export default class World {
     this.groundShadow.update(); // d'abord : calcule les ellipses d'ombre lues par l'herbe
     this.grass.update();
     this.rain.update();
+    this.bush.update();
+    this.tree.update();
     this.water.update();
     this.waterfall.update();
   }

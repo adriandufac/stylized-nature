@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import WorldComponent from "./WorldComponent.js";
+import FoliageWind from "./FoliageWind.js";
 
 import bushVertexShader from "../../shaders/bush/vertex.glsl";
 import bushFragmentShader from "../../shaders/bush/fragment.glsl";
@@ -7,11 +8,7 @@ import bushFragmentShader from "../../shaders/bush/fragment.glsl";
 /**
  * BUSH — buissons placés À LA MAIN (pas de dispersion aléatoire comme l'herbe).
  * Chaque buisson = un amas de quads texturés (carte de feuillage), regroupés en
- * UN SEUL InstancedMesh pour un coût de rendu minimal (un seul draw call).
- *
- * Étape actuelle (placement) : MeshBasicMaterial + alphaTest, SANS shader custom.
- * But : valider que les touffes apparaissent au bon endroit, posées sur le relief.
- * Le billboard / l'éclairage / le vent viendront avec le ShaderMaterial à l'étape suivante.
+ * UN SEUL InstancedMesh.
  */
 export default class Bush extends WorldComponent {
   constructor(terrain, wind, environment, groundShadow) {
@@ -44,7 +41,7 @@ export default class Bush extends WorldComponent {
 
     // Les cartes de feuillage : chaque quad en piochera UNE au hasard (voir build()).
     // Elles sont empilées dans une seule texture array (sampler2DArray) -> 1 seul draw call.
-    // ⚠️ toutes doivent avoir la MÊME taille (idéalement carré, puissance de 2 : 1024x1024).
+    // toutes doivent avoir la MÊME taille (idéalement carré, puissance de 2 : 1024x1024).
     this.leafUrls = [
       "/textures/leaftest.png",
       "/textures/leaftest2.png",
@@ -54,6 +51,7 @@ export default class Bush extends WorldComponent {
     this.textureArray = null; // rempli par loadTextures() (chargement asynchrone)
 
     this.bladeGeometry = new THREE.PlaneGeometry(1, 1); // UV déjà en [0,1]
+    this.foliageWind = new FoliageWind(this.wind, 0.1); // 2.0 = sensibilité vent des buissons
     this.setMaterial();
     this.loadTextures(); // charge le tableau de textures PUIS appelle build()
     this.setSubscriptions();
@@ -84,6 +82,7 @@ export default class Bush extends WorldComponent {
         uSunDirection: { value: this.environment.sunDirection },
         uAmbientLight: { value: this.environment.ambientIntensity },
         uLeafTexture: { value: null }, // tableau de cartes de feuillage (rempli par loadTextures)
+        ...this.foliageWind.uniforms, // uTime / uWindStrength / uWindDirection
       },
     });
   }
@@ -162,6 +161,7 @@ export default class Bush extends WorldComponent {
     this.sphericalNormals = new Float32Array(total * 3); // normales sphériques pour chaque quad
     this.instanceColors = new Float32Array(total * 3); // couleur par quad (héritée du buisson)
     this.textureIndices = new Float32Array(total); // index de la carte de feuillage (0..N-1) par quad
+    this.windFactors = new Float32Array(total * 2);
 
     let i = 0;
     for (const bush of this.bushes) {
@@ -197,6 +197,13 @@ export default class Bush extends WorldComponent {
         this.textureIndices[i] = Math.floor(
           Math.random() * this.leafUrls.length,
         );
+        // vent : amplitude 0 en bas -> 1 en haut (base plantée), déphasage aléatoire par quad.
+        this.windFactors[i * 2] = THREE.MathUtils.clamp(
+          (this.dummy.position.y - groundY) / bush.size,
+          0,
+          1,
+        );
+        this.windFactors[i * 2 + 1] = Math.random() * Math.PI * 2;
         this.instancedMesh.setMatrixAt(i++, this.dummy.matrix);
       }
     }
@@ -214,12 +221,11 @@ export default class Bush extends WorldComponent {
       "aTextureIndex",
       new THREE.InstancedBufferAttribute(this.textureIndices, 1),
     );
+    this.bladeGeometry.setAttribute("aWind", new THREE.InstancedBufferAttribute(this.windFactors, 2))
     this.instancedMesh.instanceMatrix.needsUpdate = true;
     this.scene.add(this.instancedMesh);
   }
 
-  // Remplit le tableau des couleurs d'instance : chaque quad prend la couleur de son buisson.
-  // THREE.Color convertit le hex (sRGB) en rgb linéaire ; le shader réencode en sortie.
   fillInstanceColors() {
     let i = 0;
     for (const bush of this.bushes) {
@@ -246,10 +252,15 @@ export default class Bush extends WorldComponent {
     // Le terrain change de taille/relief -> les hauteurs au sol changent, on replace.
     this.terrain.on("rebuilt", () => this.build());
     this.terrain.on("resampled", () => this.build());
+    // L'abonnement au vent (force) est géré par FoliageWind.
   }
 
   setDebug() {
     const folder = this.debug.ui.addFolder("Buissons");
+    // Sensibilité au vent des buissons (indépendante de l'herbe et des arbres).
+    folder
+      .add(this.foliageWind.uniforms.uWindAmplitude, "value", 0, 6, 0.1)
+      .name("Sensibilité vent");
     // Un sous-dossier par buisson : on règle chacun indépendamment.
     this.bushes.forEach((bush, i) => {
       const sub = folder.addFolder(`Buisson ${i + 1}`).close();
@@ -278,5 +289,8 @@ export default class Bush extends WorldComponent {
         .name("Couleur")
         .onChange(() => this.updateColors());
     });
+  }
+  update() {
+    this.foliageWind.update(this.time.elapsed);
   }
 }

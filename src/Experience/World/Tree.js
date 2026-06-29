@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import WorldComponent from "./WorldComponent.js";
+import FoliageWind from "./FoliageWind.js";
 
 import bushVertexShader from "../../shaders/bush/vertex.glsl";
 import bushFragmentShader from "../../shaders/bush/fragment.glsl";
@@ -86,6 +87,7 @@ export default class Tree extends WorldComponent {
     this.texture = new THREE.TextureLoader().load("/textures/leaftest.png");
     this.texture.colorSpace = THREE.SRGBColorSpace;
 
+    this.foliageWind = new FoliageWind(this.wind, 0.1); // 2.0 = sensibilité vent du feuillage
     this.setFoliageMaterial();
     this.scene.add(this.group);
 
@@ -129,6 +131,7 @@ export default class Tree extends WorldComponent {
         uSunDirection: { value: this.environment.sunDirection },
         uAmbientLight: { value: this.environment.ambientIntensity },
         uLeafTexture: { value: this.texture },
+        ...this.foliageWind.uniforms, // uTime / uWindStrength / uWindDirection
       },
     });
   }
@@ -229,6 +232,7 @@ export default class Tree extends WorldComponent {
 
     const sphericalNormals = new Float32Array(total * 3);
     const colors = new Float32Array(total * 3);
+    const windFactors = new Float32Array(total * 2);
     this._color.set(tree.cfg.color);
     const cr = this._color.r,
       cg = this._color.g,
@@ -265,6 +269,10 @@ export default class Tree extends WorldComponent {
         colors[i * 3] = cr;
         colors[i * 3 + 1] = cg;
         colors[i * 3 + 2] = cb;
+        // vent : le feuillage d'arbre oscille EN MASSE -> amplitude ~constante (léger aléa),
+        // déphasage aléatoire par quad.
+        windFactors[i * 2] = 0.85 + 0.15 * Math.random();
+        windFactors[i * 2 + 1] = Math.random() * Math.PI * 2;
         foliageMesh.setMatrixAt(i++, this.dummy.matrix);
       }
     }
@@ -277,6 +285,10 @@ export default class Tree extends WorldComponent {
       "aColor",
       new THREE.InstancedBufferAttribute(colors, 3),
     );
+    geometry.setAttribute(
+      "aWind",
+      new THREE.InstancedBufferAttribute(windFactors, 2),
+    );
     foliageMesh.instanceMatrix.needsUpdate = true;
     tree.subgroup.add(foliageMesh);
     tree.foliageMesh = foliageMesh;
@@ -288,6 +300,12 @@ export default class Tree extends WorldComponent {
     this.terrain.on("resampled", () =>
       this.trees.forEach((t) => this.place(t)),
     );
+    // L'abonnement au vent (force) est géré par FoliageWind.
+  }
+
+  update() {
+    // Un seul matériau de feuillage partagé par tous les arbres -> une maj suffit.
+    this.foliageWind.update(this.time.elapsed);
   }
 
   setDebug(tree) {
@@ -295,6 +313,10 @@ export default class Tree extends WorldComponent {
     if (!this._debugFolder) {
       this._debugFolder = this.debug.ui.addFolder("Arbres").close();
       const rebuildAll = () => this.trees.forEach((t) => this.buildFoliage(t));
+      // Sensibilité au vent du feuillage (indépendante de l'herbe et des buissons).
+      this._debugFolder
+        .add(this.foliageWind.uniforms.uWindAmplitude, "value", 0, 6, 0.1)
+        .name("Sensibilité vent");
       this._debugFolder
         .add(this.params, "quadsPerTip", 1, 40, 1)
         .name("Quads / branche")
