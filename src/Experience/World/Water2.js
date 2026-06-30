@@ -158,7 +158,8 @@ export default class Water2 extends WorldComponent {
       uWaveFrequency: { value: o.waveFrequency },
       uWaveSpeed: { value: o.waveSpeed },
       uFlowDirection: { value: o.flowDirection },
-      uFlowSpeed: { value: o.flowSpeed },
+      uFlowSpeed: { value: o.flowSpeed }, // TAUX d'avancée (piloté par le vent), plus lu par le shader
+      uFlowOffset: { value: 0 },          // PHASE accumulée (update) : monotone -> jamais de marche arrière
       // Lumière : sunDirection est partagé par RÉFÉRENCE (muté en place par Environment.updateSun)
       uSunDirection: { value: this.environment.sunDirection },
       uSunColor: { value: new THREE.Color("#fff6e0") },
@@ -207,6 +208,11 @@ export default class Water2 extends WorldComponent {
   }
 
   update() {
-    for (const m of this.materials) m.uniforms.uTime.value = this.time.elapsed;
+    for (const m of this.materials) {
+      m.uniforms.uTime.value = this.time.elapsed; // houle/écume (vitesse fixe)
+      // Phase de courant accumulée : avance de delta * vitesse. Réduire la vitesse
+      // (vent plus faible) ralentit l'avancée sans jamais la faire reculer.
+      m.uniforms.uFlowOffset.value += this.time.delta * m.uniforms.uFlowSpeed.value;
+    }
   }
 }

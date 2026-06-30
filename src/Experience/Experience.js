@@ -6,6 +6,7 @@ import Camera from './Camera.js'
 import Renderer from './Renderer.js'
 import World from './World/World.js'
 import Exporter from './Exporter.js'
+import HUD from './Utils/HUD.js'
 
 let instance = null
 
@@ -28,6 +29,9 @@ export default class Experience {
     // Outil d'export .glb (terrain + falaise) comme référence pour Blender.
     this.exporter = new Exporter([this.world.terrain.mesh, this.world.cliff.group])
 
+    // HUD météo : branché directement sur Wind / Environment / Rain.
+    this.hud = new HUD()
+
     this.sizes.on('resize', () => this.resize())
     this.time.on('tick', () => this.update())
   }
@@ -40,6 +44,9 @@ export default class Experience {
   update() {
     this.camera.update()
     this.world.update()
+    // Écriture DOM de l'heure alignée sur la frame (gatée : ne fait rien la plupart
+    // du temps) -> fondue dans la passe de rendu, pas de pipeline séparé comme setInterval.
+    this.hud.update()
     this.renderer.update()
   }
 }

@@ -39,13 +39,6 @@ export default class Environment extends WorldComponent {
 
     this.directionalLight = new THREE.DirectionalLight('#ffffff', 1.5)
     this.scene.add(this.directionalLight)
-
-    // Debug : boule qui matérialise la position du soleil
-    this.debugSun = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.1, 2),
-      new THREE.MeshBasicMaterial(),
-    )
-    this.scene.add(this.debugSun)
   }
 
   // Recalcule la direction du soleil à partir des 3 paramètres.
@@ -73,9 +66,6 @@ export default class Environment extends WorldComponent {
 
     this.sunDirection.normalize()
     this.directionalLight.position.copy(this.sunDirection)
-
-    // Debug
-    this.debugSun.position.copy(this.sunDirection).multiplyScalar(20)
 
     // Pas de mise à jour d'uniforms ici : herbe et pluie référencent sunDirection
     // directement (même objet), la mutation se propage toute seule.

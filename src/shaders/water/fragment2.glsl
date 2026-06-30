@@ -20,7 +20,8 @@ uniform float uNoiseThreshold;  // seuil d'apparition des bandes (0..1)
 uniform float uFoamWidth;       // largeur de l'écume de berge (en UV)
 
 uniform vec2  uFlowDirection;   // direction du courant
-uniform float uFlowSpeed;       // vitesse de défilement du motif le long du courant
+uniform float uFlowOffset;      // phase de défilement ACCUMULÉE (croît toujours) : baisser
+                                // le vent ralentit l'avancée mais ne la fait jamais reculer
 
 // ── Lumière (même logique manuelle que les shaders herbe/buisson) ───────────
 uniform vec3  uSunDirection;    // direction du soleil (monde), partagée avec Environment
@@ -63,8 +64,9 @@ float snoise(vec2 v) {
 }
 
 void main() {
-  // défilement : tout le mouvement de surface suit uFlowDirection à uFlowSpeed.
-  vec2 flow = uFlowDirection * uTime * uFlowSpeed;
+  // défilement : tout le mouvement de surface suit uFlowDirection.
+  // L'offset est accumulé côté JS (phase monotone), donc le motif ne recule jamais.
+  vec2 flow = uFlowDirection * uFlowOffset;
 
   // 1) DÉGRADÉ PAR VIGNETTE (cf. tuto) -----------------------------------------
   float vignette = length(vUv - 0.5) * uVignette;
