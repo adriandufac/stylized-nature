@@ -10,7 +10,7 @@ void main() {
   float AmbientLight = uAmbientLight; // Ambient light
   // dayFactor : 1 quand le soleil est levé, 0 quand il passe sous l'horizon.
   // Même formule que l'herbe -> la pluie ne capte plus la lumière la nuit (devient invisible).
-  float dayFactor = smoothstep(-0.1, 0.5, uSunDirection.y);
+  float dayFactor = smoothstep(-0.15, 0.05, uSunDirection.y);
 
   float light = max(dayFactor, AmbientLight); // 
 

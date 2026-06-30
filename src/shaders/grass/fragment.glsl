@@ -20,11 +20,11 @@ void main() {
   if (!gl_FrontFacing) normal = -normal; // face arrière (DoubleSide) : on utilise SA normale sortante
   float sunOrientation = dot(uSunDirection, normal);
   // 0 quand le soleil est sous l'horizon, 1 quand il est bien levé
-  float dayFactor = smoothstep(-0.1, 0.5, uSunDirection.y);
+  float dayFactor = smoothstep(-0.15, 0.05, uSunDirection.y);
   float diffuse = max(sunOrientation *0.5 +0.5, 0.0) * dayFactor; // half lambert
   // vColor.x : 0 à la base -> 1 à la pointe. Dégradé vertical du brin.
   vec3 col = mix(uBaseColor, uTipColor, vColor.x);
-  col *= max(diffuse, AmbientLight); // éclairage : diffuse + ambiant (pas de spéculaire pour un rendu stylisé)
+  col *= AmbientLight + diffuse * (1.0 - AmbientLight); // ambiant additif : garde l'ombrage directionnel même rasant
   col = smoothstep(0.1, 0.9, col); // Accentue les contrastes pour un rendu plus stylisé*
   
   //Specular

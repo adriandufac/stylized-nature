@@ -46,9 +46,9 @@ void main() {
 
   // --- Éclairage stylisé (identique herbe/rochers).
   float sunOrientation = dot(uSunDirection, normal);
-  float dayFactor = smoothstep(-0.1, 0.5, uSunDirection.y);
+  float dayFactor = smoothstep(-0.15, 0.05, uSunDirection.y);
   float diffuse = max(sunOrientation * 0.5 + 0.5, 0.0) * dayFactor;
-  vec3 col = base * max(diffuse, uAmbientLight);
+  vec3 col = base * (uAmbientLight + diffuse * (1.0 - uAmbientLight)); // ambiant additif : garde l'ombrage directionnel même rasant
 
   // --- Rim light : éclaire la silhouette (fort là où la normale est ~perpendiculaire à la vue).
   vec3 viewDir = normalize(cameraPosition - vWorldPosition); // cameraPosition injecté par three

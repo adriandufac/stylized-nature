@@ -37,10 +37,10 @@ void main() {
 
   // --- Éclairage stylisé (identique à l'herbe) : half-lambert * jour + ambiant.
   float sunOrientation = dot(uSunDirection, normal);
-  float dayFactor = smoothstep(-0.1, 0.5, uSunDirection.y);
+  float dayFactor = smoothstep(-0.15, 0.05, uSunDirection.y);
   float diffuse = max(sunOrientation * 0.5 + 0.5, 0.0) * dayFactor;
 
-  vec3 col = base * max(diffuse, uAmbientLight);
+  vec3 col = base * (uAmbientLight + diffuse * (1.0 - uAmbientLight)); // ambiant additif : garde l'ombrage directionnel même rasant
   col = smoothstep(0.0, 1.0, col); // accentue le contraste (rendu stylisé)
 
   gl_FragColor = vec4(col, 1.0);

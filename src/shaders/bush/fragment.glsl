@@ -19,11 +19,12 @@ void main () {
     if (tex.a < 0.5) discard;       // équivaut à alphaTest = 0.5
   vec3 normal = normalize(vSphereNormal);
   float sunOrientation = dot(uSunDirection, normal);
-  float dayFactor = smoothstep(-0.1, 0.5, uSunDirection.y); // nuit -> 0
+  float dayFactor = smoothstep(-0.15, 0.05, uSunDirection.y); // nuit -> 0
   float diffuse = max(sunOrientation * 0.5 + 0.5, 0.0) * dayFactor; // half-lambert
 
   vec3 col = vColor * vec3(tex.r, tex.r, tex.r);    // teinte propre au buisson x texture
-  col *= max(diffuse, uAmbientLight*0.5);
+  float bushAmbient = uAmbientLight * 0.5;
+  col *= bushAmbient + diffuse * (1.0 - bushAmbient); // ambiant additif : garde l'ombrage directionnel même rasant
 
   gl_FragColor = vec4(col, 1.0);
   #include <colorspace_fragment>

@@ -51,7 +51,7 @@ export default class Bush extends WorldComponent {
     this.textureArray = null; // rempli par loadTextures() (chargement asynchrone)
 
     this.bladeGeometry = new THREE.PlaneGeometry(1, 1); // UV déjà en [0,1]
-    this.foliageWind = new FoliageWind(this.wind, 0.1); // 2.0 = sensibilité vent des buissons
+    this.foliageWind = new FoliageWind(this.wind, 0.1); // sensibilité au vent des buissons (réglable dans le debug)
     this.setMaterial();
     this.loadTextures(); // charge le tableau de textures PUIS appelle build()
     this.setSubscriptions();

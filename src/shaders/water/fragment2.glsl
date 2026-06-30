@@ -106,11 +106,11 @@ void main() {
 
   vec3 sunDir  = normalize(uSunDirection);
   vec3 viewDir = normalize(cameraPosition - vWorldPos);
-  float dayFactor = smoothstep(-0.1, 0.5, sunDir.y); // nuit -> 0
+  float dayFactor = smoothstep(-0.15, 0.05, sunDir.y); // nuit -> 0
 
   // Diffus half-lambert (doux : la surface reste quasi horizontale)
   float diffuse = max(dot(normal, sunDir) * 0.5 + 0.5, 0.0) * dayFactor;
-  color *= max(uAmbient, diffuse);
+  color *= uAmbient + diffuse * (1.0 - uAmbient); // ambiant additif : garde l'ombrage directionnel même rasant
 
   // Spéculaire Blinn-Phong : les éclats scintillants qui font "lire" l'eau
   vec3 halfDir = normalize(sunDir + viewDir);

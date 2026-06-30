@@ -87,7 +87,7 @@ export default class Tree extends WorldComponent {
     this.texture = new THREE.TextureLoader().load("/textures/leaftest.png");
     this.texture.colorSpace = THREE.SRGBColorSpace;
 
-    this.foliageWind = new FoliageWind(this.wind, 0.1); // 2.0 = sensibilité vent du feuillage
+    this.foliageWind = new FoliageWind(this.wind, 0.1); // sensibilité au vent du feuillage (réglable dans le debug)
     this.setFoliageMaterial();
     this.scene.add(this.group);
 

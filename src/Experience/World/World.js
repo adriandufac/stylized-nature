@@ -9,6 +9,7 @@ import Cliff from "./Cliff.js";
 import Water from "./Water.js";
 import Water2 from "./Water2.js";
 import Waterfall from "./Waterfall.js";
+import Sky from "./Sky.js";
 import GroundShadow from "./GroundShadow.js";
 
 export default class World {
@@ -16,6 +17,7 @@ export default class World {
     // Terrain Environment Wind sont sources de vérité.
     this.terrain = new Terrain();
     this.environment = new Environment();
+    this.sky = new Sky(this.environment);
     this.wind = new Wind();
 
     // Ombres au sol rendues sur l'herbe : alimentées par les arbres et les buissons.
@@ -32,7 +34,10 @@ export default class World {
   }
 
   update() {
+    this.environment.update();
     this.groundShadow.update(); // d'abord : calcule les ellipses d'ombre lues par l'herbe
+    
+    this.sky.update();
     this.grass.update();
     this.rain.update();
     this.bush.update();

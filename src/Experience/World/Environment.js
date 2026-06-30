@@ -11,9 +11,10 @@ export default class Environment extends WorldComponent {
 
     // Paramètres de la trajectoire du soleil (arc incliné)
     this.sunParams = {
-      hour: 12,         // heure de la journée (0-24) : 6 = lever (Est), 12 = zénith/midi, 18 = coucher (Ouest), 0/24 = minuit
+      hour: 12,         // heure de la journée (0-24) : ~12 = zénith/midi. Lever/coucher dépendent de la déclinaison.
       inclination: 0.6, // inclinaison du PLAN de l'arc : 0 = passe par le zénith, plus grand = arc penché (culmine plus bas, vers le Sud)
       orientation: 0.0, // azimut : fait pivoter tout l'arc (l'axe lever→coucher) autour de la verticale
+      declination: 0.41,// remonte tout l'arc : écarte lever/coucher. Avec le midi solaire à 14h -> lever ~6h / coucher ~22h. 0 = jour 8h-20h.
     }
 
     // Source unique de vérité, partagée PAR RÉFÉRENCE dans les uniforms
@@ -22,6 +23,10 @@ export default class Environment extends WorldComponent {
 
     // Intensité ambiante consommée par les shaders herbe/pluie (snapshot non réactif)
     this.ambientIntensity = 0.4
+
+    // cycle jour/nuit
+    this.dayDuration = 120   // secondes pour un cycle 24h complet
+    this.autoPlay = true
 
     this.setLights()
     this.updateSun()
@@ -45,9 +50,10 @@ export default class Environment extends WorldComponent {
 
   // Recalcule la direction du soleil à partir des 3 paramètres.
   updateSun() {
-    // Heure -> angle sur l'arc. 6h = lever (t=0), 12h = zénith (t=PI/2), 18h = coucher (t=PI),
-    // 0h/24h = minuit (t=-PI/2, soleil droit en dessous).
-    const t = (this.sunParams.hour - 6) * (Math.PI / 12)
+    // Heure -> angle sur l'arc. Le "8" place le midi solaire (zénith, t=PI/2) à 14h.
+    // Sans déclinaison : 8h = lever (t=0), 14h = zénith, 20h = coucher (t=PI).
+    // La déclinaison écarte ensuite lever/coucher (0.41 -> ~6h / ~22h).
+    const t = (this.sunParams.hour - 8) * (Math.PI / 12)
 
     // 1. Arc de base dans le plan vertical XY :
     //    t=0 -> (1,0,0) horizon Est | t=PI/2 -> (0,1,0) zénith | t=PI -> (-1,0,0) horizon Ouest
@@ -60,6 +66,11 @@ export default class Environment extends WorldComponent {
     // 3. Orientation : on fait pivoter l'arc complet autour de la verticale (Y) pour choisir la direction du lever.
     this.sunDirection.applyAxisAngle(SUN_AXIS_Y, this.sunParams.orientation)
 
+    // 4. Déclinaison : décale tout l'arc vers le haut (la rotation Y préserve .y, donc on l'ajoute ici).
+    //    Rallonge le jour et relève le soleil l'après-midi ; sans elle le coucher tombe à 18h pile.
+    //    Reste périodique sur 24h (boucle auto sans saut à minuit).
+    this.sunDirection.y += this.sunParams.declination
+
     this.sunDirection.normalize()
     this.directionalLight.position.copy(this.sunDirection)
 
@@ -70,10 +81,22 @@ export default class Environment extends WorldComponent {
     // directement (même objet), la mutation se propage toute seule.
   }
 
+  update() {
+    if (this.autoPlay) {
+    this.sunParams.hour = (this.sunParams.hour + (this.time.delta / this.dayDuration) * 24) % 24
+    this.updateSun()
+    if (this.hourController) this.hourController.updateDisplay() // le slider suit
+  }
+  }
   setDebug() {
     const folder = this.debug.ui.addFolder('Soleil')
     folder.add(this.sunParams, 'hour', 0, 24, 0.1).name('Heure').onChange(() => this.updateSun())
     folder.add(this.sunParams, 'inclination', 0, Math.PI * 0.5, 0.001).name('Inclinaison').onChange(() => this.updateSun())
     folder.add(this.sunParams, 'orientation', -Math.PI, Math.PI, 0.001).name('Orientation').onChange(() => this.updateSun())
+    folder.add(this.sunParams, 'declination', -0.3, 0.6, 0.001).name('Déclinaison (durée jour)').onChange(() => this.updateSun())
+    this.hourController = folder.add(this.sunParams, 'hour', 0, 24, 0.1).name('Heure')
+      .onChange(() => { this.autoPlay = false; this.updateSun() }) // saisie manuelle coupe l'auto
+    folder.add(this, 'autoPlay').name('Cycle auto')
+    folder.add(this, 'dayDuration', 10, 600, 1).name('Durée du jour (s)')
   }
 }
