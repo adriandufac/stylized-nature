@@ -4,6 +4,7 @@ import Wind from "./Wind.js";
 import Grass from "./Grass.js";
 import Rain from "./Rain.js";
 import Bush from "./Bush.js";
+import Flowers from "./Flowers.js";
 import Tree from "./Tree.js";
 import Cliff from "./Cliff.js";
 import Water from "./Water.js";
@@ -35,6 +36,7 @@ export default class World {
     this.grass = new Grass(this.terrain, this.wind, this.environment, this.groundShadow);
     this.rain = new Rain(this.terrain, this.wind, this.environment, this.weather);
     this.bush = new Bush(this.terrain, this.wind, this.environment, this.groundShadow);
+    this.flowers = new Flowers(this.terrain, this.wind, this.environment);
     this.tree = new Tree(this.terrain, this.wind, this.environment, this.groundShadow);
     this.cliff = new Cliff(this.environment);
     // this.water = new Water();   // version depth texture (écume basée sur la vraie profondeur)
@@ -58,6 +60,7 @@ export default class World {
     this.grass.update();
     this.rain.update();
     this.bush.update();
+    this.flowers.update();
     this.tree.update();
     this.water.update();
     this.waterfall.update();

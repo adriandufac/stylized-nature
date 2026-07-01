@@ -84,11 +84,15 @@ export default class Tree extends WorldComponent {
     this.group = new THREE.Group(); // contient tous les arbres
     this.trees = []; // { cfg, root, tips, subgroup, foliageMesh }
 
-    this.texture = new THREE.TextureLoader().load("/textures/leaftest.png");
-    this.texture.colorSpace = THREE.SRGBColorSpace;
+    // Le shader de feuillage (partagé avec Bush) échantillonne un sampler2DArray :
+    // on DOIT donc lui fournir une DataArrayTexture (une simple Texture2D provoque
+    // "bindTexture: textures can not be used with multiple targets" et le feuillage
+    // finit par lire la texture array d'un AUTRE composant). Chargée en asynchrone.
+    this.texture = null;
 
     this.foliageWind = new FoliageWind(this.wind, 0.1); // sensibilité au vent du feuillage (réglable dans le debug)
     this.setFoliageMaterial();
+    this.loadFoliageTexture(); // remplit uLeafTexture une fois l'image chargée
     this.scene.add(this.group);
 
     this.loadAll();
@@ -122,6 +126,7 @@ export default class Tree extends WorldComponent {
 
   setFoliageMaterial() {
     this.foliageMaterial = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, // requis pour sampler2DArray (comme Bush/Flowers)
       vertexShader: bushVertexShader,
       fragmentShader: bushFragmentShader,
       side: THREE.DoubleSide,
@@ -130,9 +135,35 @@ export default class Tree extends WorldComponent {
       uniforms: {
         uSunDirection: { value: this.environment.sunDirection },
         uAmbientLight: { value: this.environment.ambientIntensity },
-        uLeafTexture: { value: this.texture },
+        uLeafTexture: { value: null }, // DataArrayTexture (rempli par loadFoliageTexture)
         ...this.foliageWind.uniforms, // uTime / uWindStrength / uWindDirection
       },
+    });
+  }
+
+  // Construit une DataArrayTexture à UNE couche depuis leaftest.png (le feuillage des
+  // arbres ne fixe pas aTextureIndex -> couche 0). Indispensable pour un sampler2DArray.
+  loadFoliageTexture() {
+    new THREE.ImageLoader().load("/textures/leaftest.png", (img) => {
+      const w = img.width;
+      const h = img.height;
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      const pixels = ctx.getImageData(0, 0, w, h).data;
+
+      const tex = new THREE.DataArrayTexture(new Uint8Array(pixels), w, h, 1);
+      tex.format = THREE.RGBAFormat;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = true;
+      tex.needsUpdate = true;
+
+      this.texture = tex;
+      this.foliageMaterial.uniforms.uLeafTexture.value = tex;
     });
   }
 
