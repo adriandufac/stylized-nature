@@ -9,6 +9,7 @@ import Exporter from './Exporter.js'
 import HUD from './Utils/HUD.js'
 import Loading from './Utils/Loading.js'
 import Navigation from './Utils/Navigation.js'
+import Interaction from './Utils/Interaction.js'
 
 let instance = null
 
@@ -26,6 +27,10 @@ export default class Experience {
     this.scene = new THREE.Scene()
     this.camera = new Camera()
     this.renderer = new Renderer()
+
+    // Picking souris partagé (raycaster) : créé AVANT le World pour que ses objets
+    // interactifs (lucioles) puissent s'y enregistrer à leur construction.
+    this.interaction = new Interaction()
 
     // Loading AVANT le World : s'abonne au DefaultLoadingManager pour capter
     // tous les chargements d'assets (.glb, textures) dès leur départ.
@@ -60,6 +65,9 @@ export default class Experience {
   update() {
     this.camera.update()
     this.world.update()
+    // Après world.update() : les lucioles ont bougé, le raycast porte sur leurs
+    // positions à jour (survol/clic).
+    this.interaction.update()
     // Écriture DOM de l'heure alignée sur la frame (gatée : ne fait rien la plupart
     // du temps) -> fondue dans la passe de rendu, pas de pipeline séparé comme setInterval.
     this.hud.update()

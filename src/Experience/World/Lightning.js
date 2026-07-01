@@ -22,8 +22,8 @@ export default class Lightning extends WorldComponent {
     this.params = {
       color: "#cddcff", // teinte bleu-blanc du trait
       maxLightnings: 2, // éclairs simultanés max
-      minPeriod: 10, // s entre deux éclairs (min)
-      maxPeriod: 15, // s entre deux éclairs (max)
+      minPeriod: 20, // s entre deux éclairs (min)
+      maxPeriod: 25, // s entre deux éclairs (max)
       minDuration: 0.5, // durée de vie d'un éclair (min)
       maxDuration: 1.1,
       minHeight: 22, // altitude de départ (dans les nuages)
@@ -81,7 +81,12 @@ export default class Lightning extends WorldComponent {
         roughness: 0.85,
         straightness: 0.65,
       },
-      onLightningDown: () => this.triggerFlash(),
+      onLightningDown: () => {
+        this.triggerFlash();
+        // Un des deux tonnerres au hasard (uniquement en tempête : onLightningDown
+        // n'est appelé que quand le storm est actif).
+        this.experience.world?.sound?.playThunder();
+      },
     });
 
     this.storm.visible = false;

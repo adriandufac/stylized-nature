@@ -138,6 +138,7 @@ export default class Water2 extends WorldComponent {
        /*  this.scene.add(gltf.scene); */
         this.applyWind(); // courant initial selon la force de vent courante
         this.setDebug();
+        this.trigger("loaded"); // prévient les abonnés (ex. lucioles autour de l'îlot)
       },
       undefined,
       (err) => console.error("Échec du chargement de /models/water2.glb", err),

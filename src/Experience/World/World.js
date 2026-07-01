@@ -5,6 +5,7 @@ import Grass from "./Grass.js";
 import Rain from "./Rain.js";
 import Bush from "./Bush.js";
 import Flowers from "./Flowers.js";
+import Fireflies from "./Fireflies.js";
 import Tree from "./Tree.js";
 import Cliff from "./Cliff.js";
 import Water from "./Water.js";
@@ -16,6 +17,7 @@ import SkyClouds from "./SkyClouds.js";
 import Weather from "./Weather.js";
 import Lightning from "./Lightning.js";
 import GroundShadow from "./GroundShadow.js";
+import Sound from "./Sound.js";
 
 export default class World {
   constructor() {
@@ -43,9 +45,60 @@ export default class World {
     this.water = new Water2(this.environment, this.wind);
     this.waterfall = new Waterfall(this.environment, this.wind);
 
+    // Ambiance sonore : nature en continu + pluie fondue selon la météo + vent selon sa force.
+    this.sound = new Sound(this.weather, this.wind);
+
+    // Lucioles : en cercle au-dessus de l'îlot central du lac (nocturnes, hors tempête).
+    // Après Water2 : elles lisent le centre du mesh "lake" (chargé en async) pour se placer.
+    this.fireflies = new Fireflies(this.terrain, this.environment, this.weather, this.water);
+    // Secret : quand le joueur passe les 10 lucioles à la même couleur. Une seule
+    // fois par session (rechargement de page = nouvelle chance).
+    this.secretUnlocked = false;
+    this.fireflies.on("unified", () => {
+      if (this.secretUnlocked) return;
+      this.secretUnlocked = true;
+      this.showSecretPopup();
+      this.sound.playSecret(); // jingle zelda.mp3
+    });
+
     // Une fois TOUS les abonnés construits : applique l'état initial (sunny) à tous
     // (masque la pluie, pose le vent calme, cible les nuages sunny).
     this.weather.set("sunny");
+  }
+
+  // Popup "secret unlocked" (auto-disparaît). Auto-suffisant (styles inline) pour
+  // l'instant : à remplacer plus tard par un vrai effet si besoin.
+  showSecretPopup() {
+    const el = document.createElement("div");
+    el.textContent = "🔓 Secret unlocked";
+    Object.assign(el.style, {
+      position: "fixed",
+      top: "24px",
+      left: "50%",
+      transform: "translateX(-50%) translateY(-8px)",
+      padding: "12px 20px",
+      borderRadius: "10px",
+      background: "rgba(20,20,30,0.85)",
+      color: "#fff",
+      font: "600 16px/1.2 system-ui, sans-serif",
+      letterSpacing: "0.02em",
+      boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
+      zIndex: "9999",
+      opacity: "0",
+      transition: "opacity .35s ease, transform .35s ease",
+      pointerEvents: "none",
+    });
+    document.body.appendChild(el);
+
+    requestAnimationFrame(() => {
+      el.style.opacity = "1";
+      el.style.transform = "translateX(-50%) translateY(0)";
+    });
+    setTimeout(() => {
+      el.style.opacity = "0";
+      el.style.transform = "translateX(-50%) translateY(-8px)";
+      setTimeout(() => el.remove(), 400);
+    }, 3000);
   }
 
   update() {
@@ -61,8 +114,10 @@ export default class World {
     this.rain.update();
     this.bush.update();
     this.flowers.update();
+    this.fireflies.update();
     this.tree.update();
     this.water.update();
     this.waterfall.update();
+    this.sound.update(); // fondu du volume de pluie
   }
 }
