@@ -16,8 +16,8 @@ export default class CloudsRing extends CloudField {
     super(environment);
 
     this.params = {
-      count: 120,
-      radiusInner: 16, // juste au-delà des bords du terrain (±16)
+      count: 190,
+      radiusInner: 20, // juste au-delà des bords du terrain (±16)
       radiusOuter: 25,
       yMin: -3, // descend sous la jupe du terrain pour l'occulter
       yMax: 2, // remonte un peu en bouffées

@@ -7,6 +7,8 @@ import Renderer from './Renderer.js'
 import World from './World/World.js'
 import Exporter from './Exporter.js'
 import HUD from './Utils/HUD.js'
+import Loading from './Utils/Loading.js'
+import Navigation from './Utils/Navigation.js'
 
 let instance = null
 
@@ -24,6 +26,11 @@ export default class Experience {
     this.scene = new THREE.Scene()
     this.camera = new Camera()
     this.renderer = new Renderer()
+
+    // Loading AVANT le World : s'abonne au DefaultLoadingManager pour capter
+    // tous les chargements d'assets (.glb, textures) dès leur départ.
+    this.loading = new Loading()
+
     this.world = new World()
 
     // Outil d'export .glb (terrain + falaise) comme référence pour Blender.
@@ -32,8 +39,17 @@ export default class Experience {
     // HUD météo : branché directement sur Wind / Environment / Rain.
     this.hud = new HUD()
 
+    // Barre de navigation (points d'intérêt) : cachée jusqu'à la fin du plongeon.
+    this.navigation = new Navigation()
+
     this.sizes.on('resize', () => this.resize())
     this.time.on('tick', () => this.update())
+  }
+
+  // Appelé par Loading quand les assets sont prêts et l'overlay commence à
+  // s'effacer : lance le plongeon, puis révèle la navigation à son terme.
+  begin() {
+    this.camera.startIntro(() => this.navigation.show())
   }
 
   resize() {

@@ -8,6 +8,17 @@
   </head>
   <body>
     <canvas class="webgl"></canvas>
+
+    <!-- Écran de chargement minimaliste : présent dès le HTML pour s'afficher
+         instantanément, avant même que le module JS ne soit parsé/exécuté. -->
+    <div class="loader" id="loader">
+      <div class="loader__inner">
+        <h1 class="loader__title">Stylized Nature</h1>
+        <div class="loader__bar"><div class="loader__bar-fill"></div></div>
+        <div class="loader__pct">0%</div>
+      </div>
+    </div>
+
     <script type="module" src="./script.js"></script>
   </body>
 </html>

@@ -14,3 +14,129 @@ body {
   left: 0;
   outline: none;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Écran de chargement                                                */
+/* ------------------------------------------------------------------ */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #2b5d7d 0%, #4f8f8a 55%, #6fae7f 100%);
+  color: #f4faf6;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Fondu piloté par la classe .loader--hidden */
+  opacity: 1;
+  transition: opacity 1s ease;
+}
+
+/* Retiré du flux d'interaction une fois invisible (laisse cliquer la scène). */
+.loader--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loader__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.loader__title {
+  font-size: clamp(28px, 5vw, 46px);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+.loader__bar {
+  width: 240px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+
+.loader__bar-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: #f4faf6;
+  /* La largeur est animée en CSS : la progression réelle (par sauts) devient fluide. */
+  transition: width 0.4s ease;
+}
+
+.loader__pct {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Barre de navigation (points d'intérêt)                             */
+/* ------------------------------------------------------------------ */
+.nav {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 50;
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(18, 32, 40, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Cachée puis révélée (à la fin du plongeon) via .nav--visible */
+  transform: translate(-50%, 24px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.nav--visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.nav__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #eaf3ee;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.nav__item:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.nav__item.is-active {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.nav__item.is-active .nav__dot {
+  background: #a5e8b0;
+  box-shadow: 0 0 8px rgba(165, 232, 176, 0.9);
+}
