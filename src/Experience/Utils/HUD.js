@@ -38,20 +38,20 @@ export default class HUD {
     this.experience = new Experience()
     this.wind = this.experience.world.wind
     this.environment = this.experience.world.environment
-    this.rain = this.experience.world.rain
+    this.weatherCtrl = this.experience.world.weather // source de vérité météo
 
     // État propre au HUD (le reste est lu depuis la scène).
     this.windPct = Math.round(
       Math.min(100, Math.max(0, (this.wind.params.strength / WIND_MAX_STRENGTH) * 100)),
     )
-    this.weather = 'sunny'
     this.open = true
     this.drag = null // 'wind' | null
 
     this.injectGlobalStyles()
     this.build()
     this.bindEvents()
-    this.applyWeather() // état initial (sunny -> pluie masquée)
+    // L'état initial (sunny) est posé par World via weather.set('sunny') ; le HUD
+    // ne fait que refléter l'état courant.
     this.refreshWind()
     this.refreshWeatherButtons()
     this.refreshCollapse()
@@ -259,11 +259,17 @@ export default class HUD {
     const pct = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100))
     this.windPct = Math.round(pct)
     this.wind.params.strength = (this.windPct / 100) * WIND_MAX_STRENGTH
+    this.wind.strengthTarget = this.wind.params.strength // drag = immédiat : pas de lerp de retour
     this.wind.updateWind() // recalcule la direction et notifie herbe/pluie/etc.
     this.refreshWind()
   }
 
   refreshWind() {
+    // Synchronise depuis la force réelle du vent (source de vérité) : ainsi le slider
+    // suit aussi les changements pilotés par la météo, pas seulement le drag manuel.
+    this.windPct = Math.round(
+      Math.min(100, Math.max(0, (this.wind.params.strength / WIND_MAX_STRENGTH) * 100)),
+    )
     const w = this.windPct
     const label = w < 15 ? 'Calme' : w < 40 ? 'Léger' : w < 65 ? 'Modéré' : w < 85 ? 'Fort' : 'Violent'
     this.el.windFill.style.width = w + '%'
@@ -311,6 +317,9 @@ export default class HUD {
   update() {
     this.drawClock()   // aiguille (canvas, aucune mutation DOM)
     this.refreshTime() // heure digitale (canvas, gatée à la minute)
+    // Le vent lerpe lors d'un changement météo -> le slider suit TANT QUE ça bouge
+    // (aucune écriture DOM une fois stabilisé, strength === strengthTarget).
+    if (this.wind.params.strength !== this.wind.strengthTarget) this.refreshWind()
   }
 
   // Prépare le canvas de l'horloge + met en CACHE le cadran statique (offscreen),
@@ -451,23 +460,13 @@ export default class HUD {
   }
 
   // --- MÉTÉO ------------------------------------------------------------
+  // Délègue à la source de vérité Weather : chaque composant (nuages, pluie, vent)
+  // applique sa tranche via son abonnement 'change'. Le HUD ne fait que refléter.
   pickWeather(weather) {
-    this.weather = weather
-    this.applyWeather()
+    this.weatherCtrl.set(weather)
+    // Le vent lerpe ensuite vers sa cible : le slider est animé frame par frame
+    // dans update(). Ici on ne rafraîchit que les boutons.
     this.refreshWeatherButtons()
-  }
-
-  applyWeather() {
-    const raining = this.weather !== 'sunny'
-    if (this.rain && this.rain.lines) this.rain.lines.visible = raining
-
-    // "Tempest" : gros coup de vent (le slider suit).
-    if (this.weather === 'tempest') {
-      this.windPct = 90
-      this.wind.params.strength = (this.windPct / 100) * WIND_MAX_STRENGTH
-      this.wind.updateWind()
-      this.refreshWind()
-    }
   }
 
   refreshWeatherButtons() {
@@ -478,9 +477,10 @@ export default class HUD {
       on
         ? base + `background:${S.accent}; border-color:${S.accent}; color:#fff; box-shadow:0 8px 18px -6px ${S.accent};`
         : base + `background:${S.wellBg}; color:${S.ink}; opacity:.82;`
-    this.el.sunny.style.cssText = mk(this.weather === 'sunny')
-    this.el.rainy.style.cssText = mk(this.weather === 'rainy')
-    this.el.tempest.style.cssText = mk(this.weather === 'tempest')
+    const w = this.weatherCtrl.current
+    this.el.sunny.style.cssText = mk(w === 'sunny')
+    this.el.rainy.style.cssText = mk(w === 'rainy')
+    this.el.tempest.style.cssText = mk(w === 'tempest')
   }
 
   // --- DIVERS -----------------------------------------------------------

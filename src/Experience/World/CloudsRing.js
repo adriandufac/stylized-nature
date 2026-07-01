@@ -1,32 +1,28 @@
-import * as THREE from "three";
-import WorldComponent from "./WorldComponent.js";
-import cloudsVertexShader from "../../shaders/clouds/vertex.glsl";
-import cloudsFragmentShader from "../../shaders/clouds/fragment.glsl";
+import CloudField from "./CloudField.js";
 
 /**
- * CLOUDS — anneau de nuages stylisés posé autour du terrain.
+ * CLOUDSRING — anneau de nuages stylisés posé autour du terrain.
  *
  * Le terrain est un plan rectangulaire (32×32, bords à ±16) dont la jupe plate
  * est coupée net contre le ciel. On masque cette découpe avec une bande de puffs
  * billboardés (InstancedMesh) répartis en anneau juste au-delà des bords, descendant
  * un peu sous le sol pour occulter la coupure -> effet "île flottante / mer de nuages".
  *
- * Composant autonome : n'altère aucun shader existant. Teinté selon l'heure via
- * environment.sunDirection (même logique smoothstep que Sky).
+ * N'a rien à voir avec la météo : uCoverage/uBrightness restent à 1 (hérités de
+ * CloudField), donc tous les puffs sont toujours visibles et blancs.
  */
-export default class Clouds extends WorldComponent {
+export default class CloudsRing extends CloudField {
   constructor(environment) {
-    super();
-    this.environment = environment;
+    super(environment);
 
     this.params = {
       count: 120,
-      radiusInner: 17, // juste au-delà des bords du terrain (±16)
-      radiusOuter: 26,
+      radiusInner: 16, // juste au-delà des bords du terrain (±16)
+      radiusOuter: 25,
       yMin: -3, // descend sous la jupe du terrain pour l'occulter
       yMax: 2, // remonte un peu en bouffées
-      sizeMin: 4,
-      sizeMax: 10,
+      sizeMin: 8.5,
+      sizeMax: 16,
       opacity: 0.95,
       driftSpeed: 0.02, // rad/s : rotation lente de l'anneau
       dayColor: "#f4f1ea", // blanc cassé chaud
@@ -34,119 +30,23 @@ export default class Clouds extends WorldComponent {
       sunTint: "#ffd9a0", // pointe chaude au lever/coucher
     };
 
-    // Objet "fantôme" pour composer la matrice de chaque instance (patron Grass).
-    this.dummy = new THREE.Object3D();
-    this.instancedMesh = null;
-
-    this.buildGeometry();
-    this.setMaterial();
-    this.build();
-    this.setDebug();
+    this.init();
   }
 
-  buildGeometry() {
-    // Quad unitaire : le billboard et l'échelle se font dans le vertex shader via aScale.
-    this.geometry = new THREE.PlaneGeometry(1, 1);
+  getCount() {
+    return this.params.count;
   }
 
-  setMaterial() {
-    this.uniforms = {
-      uTime: { value: 0 },
-      uSunDirection: { value: this.environment.sunDirection }, // réf partagée (mutée en place)
-      uDayFactor: { value: 1 },
-      uDayColor: { value: new THREE.Color(this.params.dayColor) },
-      uNightColor: { value: new THREE.Color(this.params.nightColor) },
-      uSunTint: { value: new THREE.Color(this.params.sunTint) },
-      uOpacity: { value: this.params.opacity },
-    };
+  // Position en anneau autour du centre du terrain (origine).
+  placeInstance(i, dummy) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius =
+      this.params.radiusInner +
+      Math.random() * (this.params.radiusOuter - this.params.radiusInner);
+    const y =
+      this.params.yMin + Math.random() * (this.params.yMax - this.params.yMin);
 
-    this.material = new THREE.ShaderMaterial({
-      vertexShader: cloudsVertexShader,
-      fragmentShader: cloudsFragmentShader,
-      uniforms: this.uniforms,
-      transparent: true,
-      depthWrite: false, // quads transparents qui se chevauchent : pas d'écriture de profondeur
-      depthTest: true,
-    });
-  }
-
-  // (Re)construit l'InstancedMesh des puffs répartis en anneau.
-  // L'InstancedMesh ayant un count figé, on en recrée un à chaque changement.
-  build() {
-    if (this.instancedMesh) {
-      this.scene.remove(this.instancedMesh);
-      this.instancedMesh.dispose();
-    }
-
-    const count = this.params.count;
-    this.instancedMesh = new THREE.InstancedMesh(
-      this.geometry,
-      this.material,
-      count,
-    );
-
-    const scales = new Float32Array(count);
-    const phases = new Float32Array(count);
-    const seeds = new Float32Array(count);
-
-    for (let i = 0; i < count; i++) {
-      // Position en anneau autour du centre du terrain (origine).
-      const angle = Math.random() * Math.PI * 2;
-      const radius =
-        this.params.radiusInner +
-        Math.random() * (this.params.radiusOuter - this.params.radiusInner);
-      const y = this.params.yMin + Math.random() * (this.params.yMax - this.params.yMin);
-
-      this.dummy.position.set(
-        Math.cos(angle) * radius,
-        y,
-        Math.sin(angle) * radius,
-      );
-      this.dummy.rotation.set(0, 0, 0); // billboard géré dans le shader
-      this.dummy.scale.set(1, 1, 1);
-      this.dummy.updateMatrix();
-      this.instancedMesh.setMatrixAt(i, this.dummy.matrix);
-
-      scales[i] =
-        this.params.sizeMin +
-        Math.random() * (this.params.sizeMax - this.params.sizeMin);
-      phases[i] = Math.random() * Math.PI * 2;
-      seeds[i] = Math.random();
-    }
-
-    this.geometry.setAttribute(
-      "aScale",
-      new THREE.InstancedBufferAttribute(scales, 1),
-    );
-    this.geometry.setAttribute(
-      "aPhase",
-      new THREE.InstancedBufferAttribute(phases, 1),
-    );
-    this.geometry.setAttribute(
-      "aSeed",
-      new THREE.InstancedBufferAttribute(seeds, 1),
-    );
-
-    this.instancedMesh.instanceMatrix.needsUpdate = true;
-    // Le décalage billboard sort des bornes d'instance -> évite un clipping disgracieux.
-    this.instancedMesh.frustumCulled = false;
-    this.scene.add(this.instancedMesh);
-  }
-
-  update() {
-    this.uniforms.uTime.value = this.time.elapsed;
-
-    // 0 la nuit -> 1 le jour (même seuil que Sky pour le soleil sous l'horizon).
-    this.uniforms.uDayFactor.value = THREE.MathUtils.smoothstep(
-      this.environment.sunDirection.y,
-      -0.15,
-      0.15,
-    );
-
-    // Dérive lente de l'anneau (mesh centré sur l'origine = centre du terrain).
-    if (this.instancedMesh) {
-      this.instancedMesh.rotation.y += this.params.driftSpeed * this.time.delta;
-    }
+    dummy.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
   }
 
   setDebug() {

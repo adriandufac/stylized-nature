@@ -10,9 +10,24 @@ import starsVertexShader from "../../Shaders/Stars/vertex.glsl";
 import starsFragmentShader from "../../Shaders/Stars/fragment.glsl";
 
 export default class Sky extends WorldComponent {
-    constructor(environment) {
+    constructor(environment, weather) {
         super();
         this.environment = environment;
+        this.weather = weather;
+
+        // Assombrissement météo du ciel : multiplicateur de luminosité (horizon +
+        // zénith) appliqué APRÈS le calcul horaire. Transition à durée fixe + easing
+        // smoothstep (même ressenti que la pluie), progressive dans les deux sens.
+        this.weatherBrightness = 1;
+        this._skyFrom = 1;
+        this._skyTo = 1;
+        this._skyT = 1; // progression 0..1 (1 = terminé)
+        this.skyTransitionDuration = 3.5; // secondes
+        this.weather.on("change", () => {
+            this._skyFrom = this.weatherBrightness;
+            this._skyTo = this.weather.preset.sky;
+            this._skyT = 0;
+        });
 
         // Palette du ciel : keyframes triées par heure (0-24).
         // On interpole horizon / zénith / soleil entre les deux keyframes encadrant
@@ -176,8 +191,19 @@ export default class Sky extends WorldComponent {
 
         // Dôme : suit la caméra pour rester centré (rayon < camera.far).
         this.sky.position.copy(camera.position);
-        // Couleurs selon l'heure (mutées en place -> uniforms à jour automatiquement).
+
+        // Assombrissement météo : progression smoothstep à durée fixe (comme la pluie).
+        if (this._skyT < 1) {
+            this._skyT = Math.min(1, this._skyT + this.time.delta / this.skyTransitionDuration);
+            const e = this._skyT * this._skyT * (3 - 2 * this._skyT); // smoothstep
+            this.weatherBrightness = this._skyFrom + (this._skyTo - this._skyFrom) * e;
+        }
+
+        // Couleurs selon l'heure (mutées en place -> uniforms à jour automatiquement)...
         this.updateColors(this.environment.sunParams.hour);
+        // ... puis assombries selon la météo (horizon + zénith = le ciel lui-même).
+        this.horizonColor.multiplyScalar(this.weatherBrightness);
+        this.zenithColor.multiplyScalar(this.weatherBrightness);
         this.skyMaterial.uniforms.uSunDirection.value.copy(sunDir);
 
         // Soleil : posé sur le dôme dans la direction du soleil, orienté face caméra (billboard).
