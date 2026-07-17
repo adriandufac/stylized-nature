@@ -22,12 +22,12 @@ import truncFragmentShader from "../../shaders/trunc/fragment.glsl";
  * (les attributs d'instance aSphericalNormal/aColor sont propres à l'InstancedMesh).
  */
 export default class Tree extends WorldComponent {
-  constructor(terrain, wind, environment, groundShadow) {
+  constructor(terrain, wind, sun, groundShadow) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
-    this.environment = environment;
+    this.sun = sun;
     this.groundShadow = groundShadow;
 
     // Les arbres à charger : un .glb (mesh = tronc, Empties "tip_*" = feuillage),
@@ -111,8 +111,8 @@ export default class Tree extends WorldComponent {
       uGradientMin: { value: this.style.gradientMin },
       uGradientMax: { value: this.style.gradientMax },
       uNoise: { value: null },
-      uSunDirection: { value: this.environment.sunDirection }, // réf partagée
-      uAmbientLight: { value: this.environment.ambientIntensity },
+      uSunDirection: { value: this.sun.sunDirection }, // réf partagée
+      uAmbientLight: { value: this.sun.ambientIntensity },
       uRimColor: { value: new THREE.Color(this.style.rimColor) },
       uRimStrength: { value: this.style.rimStrength },
     };
@@ -133,8 +133,8 @@ export default class Tree extends WorldComponent {
       transparent: false,
       depthWrite: true,
       uniforms: {
-        uSunDirection: { value: this.environment.sunDirection },
-        uAmbientLight: { value: this.environment.ambientIntensity },
+        uSunDirection: { value: this.sun.sunDirection },
+        uAmbientLight: { value: this.sun.ambientIntensity },
         uLeafTexture: { value: null }, // DataArrayTexture (rempli par loadFoliageTexture)
         ...this.foliageWind.uniforms, // uTime / uWindStrength / uWindDirection
       },

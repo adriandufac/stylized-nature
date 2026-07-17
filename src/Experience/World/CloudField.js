@@ -18,12 +18,12 @@ import cloudsFragmentShader from "../../shaders/clouds/fragment.glsl";
  *   - updateExtra()        : logique d'update spécifique (ex. météo, suivi caméra)
  *   - setDebug()           : panneau lil-gui
  *
- * Teinté selon l'heure via environment.sunDirection (réf partagée, mutée en place).
+ * Teinté selon l'heure via sun.sunDirection (réf partagée, mutée en place).
  */
 export default class CloudField extends WorldComponent {
-  constructor(environment) {
+  constructor(sun) {
     super();
-    this.environment = environment;
+    this.sun = sun;
 
     // Objet "fantôme" pour composer la matrice de chaque instance (patron Grass).
     this.dummy = new THREE.Object3D();
@@ -46,7 +46,7 @@ export default class CloudField extends WorldComponent {
   setMaterial() {
     this.uniforms = {
       uTime: { value: 0 },
-      uSunDirection: { value: this.environment.sunDirection }, // réf partagée (mutée en place)
+      uSunDirection: { value: this.sun.sunDirection }, // réf partagée (mutée en place)
       uDayFactor: { value: 1 },
       uDayColor: { value: new THREE.Color(this.params.dayColor) },
       uNightColor: { value: new THREE.Color(this.params.nightColor) },
@@ -144,7 +144,7 @@ export default class CloudField extends WorldComponent {
 
     // 0 la nuit -> 1 le jour (même seuil que Sky pour le soleil sous l'horizon).
     this.uniforms.uDayFactor.value = THREE.MathUtils.smoothstep(
-      this.environment.sunDirection.y,
+      this.sun.sunDirection.y,
       -0.15,
       0.15,
     );

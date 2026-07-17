@@ -41,7 +41,7 @@ export default class Experience {
     // Outil d'export .glb (terrain + falaise) comme référence pour Blender.
     this.exporter = new Exporter([this.world.terrain.mesh, this.world.cliff.group])
 
-    // HUD météo : branché directement sur Wind / Environment / Rain.
+    // HUD météo : branché directement sur Wind / Sun / Rain.
     this.hud = new HUD()
 
     // Barre de navigation (points d'intérêt) : cachée jusqu'à la fin du plongeon.

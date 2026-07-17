@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import WorldComponent from "./WorldComponent.js";
+import Interactable from "../Utils/Interactable.js";
 import FoliageWind from "./FoliageWind.js";
 
 import bushVertexShader from "../../shaders/bush/vertex.glsl";
@@ -11,12 +12,12 @@ import bushFragmentShader from "../../shaders/bush/fragment.glsl";
  * UN SEUL InstancedMesh.
  */
 export default class Bush extends WorldComponent {
-  constructor(terrain, wind, environment, groundShadow) {
+  constructor(terrain, wind, sun, groundShadow) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
-    this.environment = environment;
+    this.sun = sun;
     this.groundShadow = groundShadow;
 
     // Buissons placés à la main. Chaque buisson définit TOUS ses paramètres :
@@ -38,6 +39,12 @@ export default class Bush extends WorldComponent {
     this._color = new THREE.Color(); // scratch pour convertir bush.color en rgb
     this.raycaster = new THREE.Raycaster();
     this.instancedMesh = null;
+
+    // Interaction : un halo lumineux + une zone de survol par buisson.
+    this.glowTexture = this.makeGlowTexture();
+    this.hitboxGeometry = new THREE.SphereGeometry(1, 8, 6); // hitbox invisible partagée
+    this.hitboxMaterial = new THREE.MeshBasicMaterial({ visible: false });
+    this.interactives = []; // { halo, haloMat, hitbox, interactable, hoverBoost }
 
     // Les cartes de feuillage : chaque quad en piochera UNE au hasard (voir build()).
     // Elles sont empilées dans une seule texture array (sampler2DArray) -> 1 seul draw call.
@@ -79,8 +86,8 @@ export default class Bush extends WorldComponent {
       transparent: false, // IMPORTANT : on utilise alphaTest (discard), PAS la transparence
       depthWrite: true, // du coup on garde le depth write (tri correct, pas de halo)
       uniforms: {
-        uSunDirection: { value: this.environment.sunDirection },
-        uAmbientLight: { value: this.environment.ambientIntensity },
+        uSunDirection: { value: this.sun.sunDirection },
+        uAmbientLight: { value: this.sun.ambientIntensity },
         uLeafTexture: { value: null }, // tableau de cartes de feuillage (rempli par loadTextures)
         ...this.foliageWind.uniforms, // uTime / uWindStrength / uWindDirection
       },
@@ -149,6 +156,7 @@ export default class Bush extends WorldComponent {
       this.scene.remove(this.instancedMesh);
       this.instancedMesh.dispose();
     }
+    this.destroyInteractives(); // repart de zéro (halos + hitboxes)
 
     // Total = somme des quads de chaque buisson.
     const total = this.bushes.reduce((sum, b) => sum + b.quads, 0);
@@ -206,6 +214,9 @@ export default class Bush extends WorldComponent {
         this.windFactors[i * 2 + 1] = Math.random() * Math.PI * 2;
         this.instancedMesh.setMatrixAt(i++, this.dummy.matrix);
       }
+
+      // Halo + zone de survol centrés sur l'amas de ce buisson.
+      this.addBushInteractive(bush, bush.x, groundY + bush.size * 0.5, bush.z);
     }
 
     this.fillInstanceColors();
@@ -255,6 +266,72 @@ export default class Bush extends WorldComponent {
     // L'abonnement au vent (force) est géré par FoliageWind.
   }
 
+  // Texture de lueur radiale (blanc -> transparent), teintée ensuite par la couleur
+  // du buisson en AdditiveBlending -> glow sans post-processing.
+  makeGlowTexture() {
+    const size = 128;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    const g = ctx.createRadialGradient(
+      size / 2, size / 2, 0,
+      size / 2, size / 2, size / 2,
+    );
+    g.addColorStop(0.0, "rgba(255,255,255,0.9)");
+    g.addColorStop(0.4, "rgba(255,255,255,0.4)");
+    g.addColorStop(1.0, "rgba(255,255,255,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  // Ajoute, pour un buisson, un halo (éteint au repos) + une hitbox invisible
+  // servant de cible de raycast. Chaque buisson a SON Interactable : le survol
+  // bascule ainsi correctement d'un buisson à l'autre.
+  addBushInteractive(bush, cx, cy, cz) {
+    const haloMat = new THREE.SpriteMaterial({
+      map: this.glowTexture,
+      color: new THREE.Color(bush.color),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      opacity: 0, // allumé au survol (voir update)
+      fog: false,
+    });
+    const halo = new THREE.Sprite(haloMat);
+    halo.position.set(cx, cy, cz);
+    halo.scale.setScalar((bush.radius * 1.2 + bush.size) * 2.2);
+    this.scene.add(halo);
+
+    // Hitbox : sphère invisible englobant l'amas (non rendue, mais toujours
+    // testée par le raycaster). Dimensionnée sur le rayon + la taille des cartes.
+    const hitbox = new THREE.Mesh(this.hitboxGeometry, this.hitboxMaterial);
+    hitbox.position.set(cx, cy, cz);
+    hitbox.scale.setScalar(bush.radius * 1.2 + bush.size * 0.5);
+    hitbox.visible = false;
+    this.scene.add(hitbox);
+
+    const interactable = new Interactable({
+      object3D: hitbox,
+      hoverable: true,
+      clickable: false,
+    });
+
+    this.interactives.push({ halo, haloMat, hitbox, interactable, hoverBoost: 0 });
+  }
+
+  destroyInteractives() {
+    for (const it of this.interactives) {
+      it.interactable.destroy(); // désenregistre du gestionnaire de picking
+      this.scene.remove(it.halo);
+      this.scene.remove(it.hitbox);
+      it.haloMat.dispose();
+    }
+    this.interactives.length = 0;
+  }
+
   setDebug() {
     const folder = this.debug.ui.addFolder("Buissons");
     // Sensibilité au vent des buissons (indépendante de l'herbe et des arbres).
@@ -292,5 +369,24 @@ export default class Bush extends WorldComponent {
   }
   update() {
     this.foliageWind.update(this.time.elapsed);
+
+    // Halos : montée/descente douce de l'opacité selon l'état de survol.
+    const delta = this.time.delta || 0.016;
+    for (const it of this.interactives) {
+      const target = it.interactable.hovered ? 1 : 0;
+      it.hoverBoost += (target - it.hoverBoost) * Math.min(1, delta * 12);
+      it.haloMat.opacity = it.hoverBoost * 0.9;
+    }
+  }
+
+  destroy() {
+    this.destroyInteractives();
+    this.hitboxGeometry.dispose();
+    this.hitboxMaterial.dispose();
+    this.glowTexture.dispose();
+    if (this.instancedMesh) {
+      this.scene.remove(this.instancedMesh);
+      this.instancedMesh.dispose();
+    }
   }
 }

@@ -12,9 +12,9 @@ import rockFragmentShader from "../../shaders/rock/fragment.glsl";
  * transforme directement.
  */
 export default class Cliff extends WorldComponent {
-  constructor(environment) {
+  constructor(sun) {
     super();
-    this.environment = environment;
+    this.sun = sun;
     // Transform de la falaise, piloté par le GUI.
     // NB : cliff2.glb contient déjà la position/rotation/échelle CUITES à l'export
     // (le cliff y est à -13.6/0.4/-12.3, rot 6°, scale 2.8, avec les rochers placés
@@ -56,8 +56,8 @@ export default class Cliff extends WorldComponent {
       uGradientMin: { value: this.look.gradientMin },
       uGradientMax: { value: this.look.gradientMax },
       uNoise: { value: null }, // rempli par loadNoise()
-      uSunDirection: { value: this.environment.sunDirection }, // réf partagée
-      uAmbientLight: { value: this.environment.ambientIntensity },
+      uSunDirection: { value: this.sun.sunDirection }, // réf partagée
+      uAmbientLight: { value: this.sun.ambientIntensity },
     };
 
     this.material = new THREE.ShaderMaterial({

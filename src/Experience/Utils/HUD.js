@@ -3,7 +3,7 @@ import Experience from '../Experience.js'
 /**
  * HUD — panneau "Nature" (maquette d'origine "Nature HUD") réécrit en vanilla JS
  * et branché DIRECTEMENT sur la scène :
- *   - Heure   -> Environment.sunParams.hour + autoPlay (lecture/écriture)
+ *   - Heure   -> Sun.sunParams.hour + autoPlay (lecture/écriture)
  *   - Vent    -> Wind.params.strength (via updateWind -> évènement 'change')
  *   - Météo   -> visibilité de la pluie (+ coup de vent en "Tempest")
  *
@@ -37,7 +37,7 @@ export default class HUD {
   constructor() {
     this.experience = new Experience()
     this.wind = this.experience.world.wind
-    this.environment = this.experience.world.environment
+    this.sun = this.experience.world.sun
     this.weatherCtrl = this.experience.world.weather // source de vérité météo
 
     // État propre au HUD (le reste est lu depuis la scène).
@@ -222,7 +222,7 @@ export default class HUD {
     })
 
     this.el.play.addEventListener('click', () => {
-      this.environment.autoPlay = !this.environment.autoPlay
+      this.sun.autoPlay = !this.sun.autoPlay
       this.refreshPlay() // évènementiel : maj uniquement au clic, pas de timer
     })
 
@@ -284,7 +284,7 @@ export default class HUD {
   // Évènementiel : appelé seulement à l'init et au clic. AUCUN timer, donc aucune
   // mise à jour continue de l'overlay -> rien ne perturbe le rendu WebGL.
   refreshPlay() {
-    const auto = this.environment.autoPlay
+    const auto = this.sun.autoPlay
     this.el.playGlyph.textContent = auto ? '❙❙' : '▶'
     this.el.playText.textContent = auto ? 'Pause' : 'Lecture'
   }
@@ -389,7 +389,7 @@ export default class HUD {
   // Aiguille + orbe + axe : redessinés chaque frame. Gate sur l'heure -> en pause,
   // rien ne change donc on ne redessine pas (canvas au repos).
   drawClock() {
-    const t = this.environment.sunParams.hour
+    const t = this.sun.sunParams.hour
     if (t === this._lastClockT) return
     this._lastClockT = t
     const ctx = this._clockCtx
@@ -435,12 +435,12 @@ export default class HUD {
     const cy = r.top + r.height / 2
     let deg = (Math.atan2(e.clientX - cx, -(e.clientY - cy)) * 180) / Math.PI
     if (deg < 0) deg += 360
-    this.environment.sunParams.hour = (deg / 360) * 24
-    if (this.environment.autoPlay) {
-      this.environment.autoPlay = false // saisie manuelle coupe le cycle auto
+    this.sun.sunParams.hour = (deg / 360) * 24
+    if (this.sun.autoPlay) {
+      this.sun.autoPlay = false // saisie manuelle coupe le cycle auto
       this.refreshPlay() // une seule fois (le bouton passe à "Lecture")
     }
-    this.environment.updateSun()
+    this.sun.updateSun()
     this.drawClock() // l'aiguille suit le pointeur (canvas)
     this.refreshTime() // heure digitale (canvas)
   }
@@ -448,7 +448,7 @@ export default class HUD {
   // Dessine l'heure DANS LE CANVAS (pixels, pas de mutation DOM) -> n'éveille pas
   // l'observer de Bitwarden. Uniquement quand la minute change (gate).
   refreshTime() {
-    const t = this.environment.sunParams.hour
+    const t = this.sun.sunParams.hour
     const hh = Math.floor(t)
     const mm = Math.floor((t - hh) * 60)
     const str = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0')

@@ -16,8 +16,8 @@ import CloudField from "./CloudField.js";
  * couverture ne recrée jamais l'InstancedMesh -> transition 100 % shader, fluide.
  */
 export default class SkyClouds extends CloudField {
-  constructor(environment, weather) {
-    super(environment);
+  constructor(sun, weather) {
+    super(sun);
 
     // Source de vérité météo : détient la table de presets (tranche `clouds`).
     this.weather = weather;

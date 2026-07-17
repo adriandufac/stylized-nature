@@ -12,8 +12,8 @@ import CloudField from "./CloudField.js";
  * CloudField), donc tous les puffs sont toujours visibles et blancs.
  */
 export default class CloudsRing extends CloudField {
-  constructor(environment) {
-    super(environment);
+  constructor(sun) {
+    super(sun);
 
     this.params = {
       count: 190,

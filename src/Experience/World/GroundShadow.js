@@ -12,10 +12,10 @@ import WorldComponent from "./WorldComponent.js";
  * les brins qui tombent dedans. Ici on ne fait donc QUE calculer les ellipses chaque frame.
  */
 export default class GroundShadow extends WorldComponent {
-  constructor(environment) {
+  constructor(sun) {
     super();
 
-    this.environment = environment;
+    this.sun = sun;
 
     this.params = {
       maxStretch: 6, // longueur max de l'étirement (clamp près de l'horizon)
@@ -44,7 +44,7 @@ export default class GroundShadow extends WorldComponent {
   }
 
   update() {
-    const sun = this.environment.sunDirection;
+    const sun = this.sun.sunDirection;
 
     // S'estompe la nuit (même logique que le dayFactor des shaders).
     this.dayFactor = THREE.MathUtils.smoothstep(sun.y, 0.0, 0.3);

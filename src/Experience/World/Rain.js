@@ -16,12 +16,12 @@ import rainFragmentShader from '../../shaders/rain/fragment.glsl'
  *    des gouttes (pas de clignotement), et le drag manuel du vent devient fluide.
  */
 export default class Rain extends WorldComponent {
-  constructor(terrain, wind, environment, weather) {
+  constructor(terrain, wind, sun, weather) {
     super()
 
     this.terrain = terrain
     this.wind = wind
-    this.environment = environment
+    this.sun = sun
     this.weather = weather
 
     this.params = {
@@ -66,8 +66,8 @@ export default class Rain extends WorldComponent {
       uWindFactor: { value: this.params.windFactor },
       uStreakLength: { value: this.params.length },
       uDensityFrac: { value: 0 },                     // 0..1 : fraction de gouttes visibles
-      uSunDirection: { value: this.environment.sunDirection }, // partagé (réf)
-      uAmbientLight: { value: this.environment.ambientIntensity },
+      uSunDirection: { value: this.sun.sunDirection }, // partagé (réf)
+      uAmbientLight: { value: this.sun.ambientIntensity },
     }
 
     this.geometry = new THREE.BufferGeometry()

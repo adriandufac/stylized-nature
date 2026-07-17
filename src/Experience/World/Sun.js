@@ -5,7 +5,7 @@ import WorldComponent from './WorldComponent.js'
 const SUN_AXIS_X = new THREE.Vector3(1, 0, 0) // axe Est-Ouest : sert à incliner le plan de l'arc
 const SUN_AXIS_Y = new THREE.Vector3(0, 1, 0) // axe vertical : sert à orienter l'arc (azimut)
 
-export default class Environment extends WorldComponent {
+export default class Sun extends WorldComponent {
   constructor() {
     super()
 

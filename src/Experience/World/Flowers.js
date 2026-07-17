@@ -16,12 +16,12 @@ import bushFragmentShader from "../../shaders/bush/fragment.glsl";
  * Hybride : dispersion de Grass.js + rendu de Bush.js.
  */
 export default class Flowers extends WorldComponent {
-  constructor(terrain, wind, environment) {
+  constructor(terrain, wind, sun) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
-    this.environment = environment;
+    this.sun = sun;
 
     // Densité FAIBLE (des fleurs ponctuelles dans l'herbe, pas un tapis).
     this.params = {
@@ -84,8 +84,8 @@ export default class Flowers extends WorldComponent {
       transparent: false,
       depthWrite: true,
       uniforms: {
-        uSunDirection: { value: this.environment.sunDirection },
-        uAmbientLight: { value: this.environment.ambientIntensity },
+        uSunDirection: { value: this.sun.sunDirection },
+        uAmbientLight: { value: this.sun.ambientIntensity },
         uLeafTexture: { value: null }, // cartes de fleurs (rempli par loadTextures)
         ...this.foliageWind.uniforms, // uTime / uWindStrength / uWindDirection / uWindAmplitude
       },

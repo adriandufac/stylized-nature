@@ -14,11 +14,11 @@ const RAY_DOWN = new THREE.Vector3(0, -1, 0)
  * raycaster partagé (Interaction) : survol = contour lumineux + curseur ; clic = couleur.
  */
 export default class Fireflies extends WorldComponent {
-  constructor(terrain, environment, weather, water) {
+  constructor(terrain, sun, weather, water) {
     super()
 
     this.terrain = terrain
-    this.environment = environment
+    this.sun = sun
     this.weather = weather
     this.water = water
 
@@ -233,7 +233,7 @@ export default class Fireflies extends WorldComponent {
       (this.weatherTarget - this.weatherFactor) * Math.min(1, this.time.delta * 0.8)
 
     // Signal nuit : 1 = pleine nuit, 0 = jour (même dérivation que Sky).
-    const nightFactor = 1 - THREE.MathUtils.smoothstep(this.environment.sunDirection.y, -0.2, 0.1)
+    const nightFactor = 1 - THREE.MathUtils.smoothstep(this.sun.sunDirection.y, -0.2, 0.1)
     const visibility = nightFactor * this.weatherFactor
 
     const elapsed = this.time.elapsed

@@ -16,11 +16,11 @@ import waterfallFragmentShader from "../../shaders/waterfall/fragment.glsl";
  * À compléter : shaders, uniforms de réglage, debug, logique de chute.
  */
 export default class Waterfall extends WorldComponent {
-  constructor(environment, wind) {
+  constructor(sun, wind) {
     super();
 
     this.sizes = this.experience.sizes;
-    this.environment = environment; // soleil + ambiance partagés (réf)
+    this.sun = sun; // soleil + ambiance partagés (réf)
     this.wind = wind; // courant piloté par la force du vent
 
     this.meshes = [];
@@ -117,10 +117,10 @@ export default class Waterfall extends WorldComponent {
       uFoamColor: { value: new THREE.Color(o.foamColor) },
       uNoiseThreshold: { value: o.noiseThreshold },
 
-      // Lumière : sunDirection partagé par RÉFÉRENCE (muté par Environment.updateSun)
-      uSunDirection: { value: this.environment.sunDirection },
+      // Lumière : sunDirection partagé par RÉFÉRENCE (muté par Sun.updateSun)
+      uSunDirection: { value: this.sun.sunDirection },
       uSunColor: { value: new THREE.Color("#fff6e0") },
-      uAmbient: { value: this.environment.ambientIntensity },
+      uAmbient: { value: this.sun.ambientIntensity },
       uNormalStrength: { value: 0.4 },
       uSpecStrength: { value: 0.6 },
       uShininess: { value: 80.0 },

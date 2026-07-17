@@ -7,30 +7,20 @@ import grassFragmentShader from "../../shaders/grass/fragment.glsl";
 
 // Masque de courbure (base=0 -> pointe=1), constant quelle que soit la taille du brin.
 const windBladePower = new Float32Array([
-  0,
-  0,
-  0,
-  0,
-  0,
-  0, // base    -> 0 (fixe)
-  0.5,
-  0.5,
-  0.5,
-  0.5,
-  0.5,
-  0.5, // milieu  -> 0.5
-  1,
-  1,
-  1, // pointe  -> 1 (bouge le plus)
+  0,0,0,
+  0,0,0, // base    -> 0 (fixe)
+  0.5,0.5,0.5,
+  0.5,0.5,0.5, // milieu  -> 0.5
+  1,1,1, // pointe  -> 1 (bouge le plus)
 ]);
 
 export default class Grass extends WorldComponent {
-  constructor(terrain, wind, environment, groundShadow) {
+  constructor(terrain, wind, sun, groundShadow) {
     super();
 
     this.terrain = terrain;
     this.wind = wind;
-    this.environment = environment;
+    this.sun = sun;
     this.groundShadow = groundShadow;
 
     this.params = {
@@ -130,21 +120,11 @@ export default class Grass extends WorldComponent {
     const geometry = new THREE.BufferGeometry();
 
     const vertices = new Float32Array([
-      -w / 2,
-      0,
-      0, // 0 base gauche
-      w / 2,
-      0,
-      0, // 1 base droite
-      -w / 4,
-      h / 2,
-      0, // 2 milieu gauche
-      w / 4,
-      h / 2,
-      0, // 3 milieu droit
-      0,
-      h,
-      0, // 4 pointe
+      -w / 2,0,0, // 0 base gauche
+      w / 2,0,0, // 1 base droite
+      -w / 4,h / 2,0, // 2 milieu gauche
+      w / 4,h / 2,0, // 3 milieu droit
+      0,h,0, // 4 pointe
     ]);
 
     geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
@@ -166,8 +146,8 @@ export default class Grass extends WorldComponent {
       uBladeHeight: { value: this.params.BLADE_H }, // hauteur locale du brin : sert à calculer la pente du vent pour la normale
       uBaseColor: { value: new THREE.Color("#3f706a") }, // vert foncé à la base
       uTipColor: { value: new THREE.Color("#a6d6cc") }, // vert clair à la pointe
-      uSunDirection: { value: this.environment.sunDirection }, // partagé (réf) : muté en place par updateSun
-      uAmbientLight: { value: this.environment.ambientIntensity },
+      uSunDirection: { value: this.sun.sunDirection }, // partagé (réf) : muté en place par updateSun
+      uAmbientLight: { value: this.sun.ambientIntensity },
 
       // Ombres au sol : les brins dans une ellipse d'ombre sont assombris.
       // Tableaux partagés PAR RÉFÉRENCE avec GroundShadow (il les remplit, on les lit).

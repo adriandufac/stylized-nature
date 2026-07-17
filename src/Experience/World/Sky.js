@@ -10,9 +10,9 @@ import starsVertexShader from "../../Shaders/Stars/vertex.glsl";
 import starsFragmentShader from "../../Shaders/Stars/fragment.glsl";
 
 export default class Sky extends WorldComponent {
-    constructor(environment, weather) {
+    constructor(sun, weather) {
         super();
-        this.environment = environment;
+        this.sun = sun;
         this.weather = weather;
 
         // Assombrissement météo du ciel : multiplicateur de luminosité (horizon +
@@ -49,14 +49,14 @@ export default class Sky extends WorldComponent {
         this.zenithColor = new THREE.Color();
         this.sunColor = new THREE.Color();
         this.moonColor = new THREE.Color("#cfe0ff"); // bleuté froid (constant)
-        this.updateColors(this.environment.sunParams.hour); // init avant la création du matériau
+        this.updateColors(this.sun.sunParams.hour); // init avant la création du matériau
 
         this.setMesh();
         this.setSun();
         this.setMoon();
         this.setStars();
         this.scene.add(this.sky);
-        this.scene.add(this.sun);
+        this.scene.add(this.sunMesh);
         this.scene.add(this.moon);
         this.scene.add(this.stars);
     }
@@ -92,7 +92,7 @@ export default class Sky extends WorldComponent {
             uniforms: {
                 uHorizonColor: { value: this.horizonColor },
                 uZenithColor: { value: this.zenithColor },
-                uSunDirection: { value: this.environment.sunDirection },
+                uSunDirection: { value: this.sun.sunDirection },
                 uSunColor: { value: this.sunColor },
             }
         })
@@ -112,8 +112,8 @@ export default class Sky extends WorldComponent {
                 uOpacity: { value: 1 },
             }
         })
-        this.sun = new THREE.Mesh(this.sunGeometry, this.sunMaterial);
-        this.sun.renderOrder = 1; // dessiné après le dôme
+        this.sunMesh = new THREE.Mesh(this.sunGeometry, this.sunMaterial);
+        this.sunMesh.renderOrder = 1; // dessiné après le dôme
     }
 
     // Disque toon de la lune (croissant) : billboard posé à l'OPPOSÉ du soleil -> visible la nuit.
@@ -187,7 +187,7 @@ export default class Sky extends WorldComponent {
 
     update() {
         const camera = this.experience.camera.instance;
-        const sunDir = this.environment.sunDirection;
+        const sunDir = this.sun.sunDirection;
 
         // Dôme : suit la caméra pour rester centré (rayon < camera.far).
         this.sky.position.copy(camera.position);
@@ -200,15 +200,15 @@ export default class Sky extends WorldComponent {
         }
 
         // Couleurs selon l'heure (mutées en place -> uniforms à jour automatiquement)...
-        this.updateColors(this.environment.sunParams.hour);
+        this.updateColors(this.sun.sunParams.hour);
         // ... puis assombries selon la météo (horizon + zénith = le ciel lui-même).
         this.horizonColor.multiplyScalar(this.weatherBrightness);
         this.zenithColor.multiplyScalar(this.weatherBrightness);
         this.skyMaterial.uniforms.uSunDirection.value.copy(sunDir);
 
         // Soleil : posé sur le dôme dans la direction du soleil, orienté face caméra (billboard).
-        this.sun.position.copy(camera.position).addScaledVector(sunDir, this.radius * 0.9);
-        this.sun.quaternion.copy(camera.quaternion);
+        this.sunMesh.position.copy(camera.position).addScaledVector(sunDir, this.radius * 0.9);
+        this.sunMesh.quaternion.copy(camera.quaternion);
         // Fondu : disparaît quand le soleil passe sous l'horizon.
         this.sunMaterial.uniforms.uOpacity.value = THREE.MathUtils.smoothstep(sunDir.y, -0.1, 0.05);
 

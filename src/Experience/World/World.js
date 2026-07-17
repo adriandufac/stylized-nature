@@ -1,5 +1,5 @@
 import Terrain from "./Terrain.js";
-import Environment from "./Environment.js";
+import Sun from "./Sun.js";
 import Wind from "./Wind.js";
 import Grass from "./Grass.js";
 import Rain from "./Rain.js";
@@ -21,36 +21,36 @@ import Sound from "./Sound.js";
 
 export default class World {
   constructor() {
-    // Terrain Environment Weather Wind sont sources de vérité.
+    // Terrain Sun Weather Wind sont sources de vérité.
     this.terrain = new Terrain();
-    this.environment = new Environment();
+    this.sun = new Sun();
     // Météo : créée AVANT ses abonnés (Sky, Wind, SkyClouds, Rain) pour qu'ils s'y abonnent.
     this.weather = new Weather();
-    this.sky = new Sky(this.environment, this.weather);
+    this.sky = new Sky(this.sun, this.weather);
     this.wind = new Wind(this.weather);
-    this.cloudsRing = new CloudsRing(this.environment);
-    this.skyClouds = new SkyClouds(this.environment, this.weather);
+    this.cloudsRing = new CloudsRing(this.sun);
+    this.skyClouds = new SkyClouds(this.sun, this.weather);
     this.lightning = new Lightning(this.weather, this.terrain);
 
     // Ombres au sol rendues sur l'herbe : alimentées par les arbres et les buissons.
-    this.groundShadow = new GroundShadow(this.environment);
+    this.groundShadow = new GroundShadow(this.sun);
 
-    this.grass = new Grass(this.terrain, this.wind, this.environment, this.groundShadow);
-    this.rain = new Rain(this.terrain, this.wind, this.environment, this.weather);
-    this.bush = new Bush(this.terrain, this.wind, this.environment, this.groundShadow);
-    this.flowers = new Flowers(this.terrain, this.wind, this.environment);
-    this.tree = new Tree(this.terrain, this.wind, this.environment, this.groundShadow);
-    this.cliff = new Cliff(this.environment);
+    this.grass = new Grass(this.terrain, this.wind, this.sun, this.groundShadow);
+    this.rain = new Rain(this.terrain, this.wind, this.sun, this.weather);
+    this.bush = new Bush(this.terrain, this.wind, this.sun, this.groundShadow);
+    this.flowers = new Flowers(this.terrain, this.wind, this.sun);
+    this.tree = new Tree(this.terrain, this.wind, this.sun, this.groundShadow);
+    this.cliff = new Cliff(this.sun);
     // this.water = new Water();   // version depth texture (écume basée sur la vraie profondeur)
-    this.water = new Water2(this.environment, this.wind);
-    this.waterfall = new Waterfall(this.environment, this.wind);
+    this.water = new Water2(this.sun, this.wind);
+    this.waterfall = new Waterfall(this.sun, this.wind);
 
     // Ambiance sonore : nature en continu + pluie fondue selon la météo + vent selon sa force.
     this.sound = new Sound(this.weather, this.wind);
 
     // Lucioles : en cercle au-dessus de l'îlot central du lac (nocturnes, hors tempête).
     // Après Water2 : elles lisent le centre du mesh "lake" (chargé en async) pour se placer.
-    this.fireflies = new Fireflies(this.terrain, this.environment, this.weather, this.water);
+    this.fireflies = new Fireflies(this.terrain, this.sun, this.weather, this.water);
     // Secret : quand le joueur passe les 10 lucioles à la même couleur. Une seule
     // fois par session (rechargement de page = nouvelle chance).
     this.secretUnlocked = false;
@@ -102,7 +102,7 @@ export default class World {
   }
 
   update() {
-    this.environment.update();
+    this.sun.update();
     this.groundShadow.update(); // d'abord : calcule les ellipses d'ombre lues par l'herbe
     
     this.sky.update();

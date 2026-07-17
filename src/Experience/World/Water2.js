@@ -17,11 +17,11 @@ import waterFragmentShader from "../../shaders/water/fragment2.glsl";
  * usesDepth = false : indique au Renderer de NE PAS faire la passe DepthCapture.
  */
 export default class Water2 extends WorldComponent {
-  constructor(environment, wind) {
+  constructor(sun, wind) {
     super();
 
     this.sizes = this.experience.sizes;
-    this.environment = environment; // soleil + ambiance partagés (réf), comme l'herbe/buissons
+    this.sun = sun; // soleil + ambiance partagés (réf), comme l'herbe/buissons
     this.wind = wind; // courant du lac/rivière piloté par la force du vent
     this.usesDepth = false; // lu par Renderer.update() pour zapper DepthCapture
 
@@ -161,10 +161,10 @@ export default class Water2 extends WorldComponent {
       uFlowDirection: { value: o.flowDirection },
       uFlowSpeed: { value: o.flowSpeed }, // TAUX d'avancée (piloté par le vent), plus lu par le shader
       uFlowOffset: { value: 0 },          // PHASE accumulée (update) : monotone -> jamais de marche arrière
-      // Lumière : sunDirection est partagé par RÉFÉRENCE (muté en place par Environment.updateSun)
-      uSunDirection: { value: this.environment.sunDirection },
+      // Lumière : sunDirection est partagé par RÉFÉRENCE (muté en place par Sun.updateSun)
+      uSunDirection: { value: this.sun.sunDirection },
       uSunColor: { value: new THREE.Color("#fff6e0") },
-      uAmbient: { value: this.environment.ambientIntensity },
+      uAmbient: { value: this.sun.ambientIntensity },
       uNormalStrength: { value: 0.4 },
       uSpecStrength: { value: 0.6 },
       uShininess: { value: 80.0 },
