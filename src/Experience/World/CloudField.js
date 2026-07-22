@@ -84,8 +84,9 @@ export default class CloudField extends WorldComponent {
 
     const scales = new Float32Array(count);
     const phases = new Float32Array(count);
-    const seeds = new Float32Array(count);
-    const ranks = new Float32Array(count);
+    const seeds = new Float32Array(count); // random pour le bruit de forme cotonneuse (perlin)
+    const ranks = new Float32Array(count); // rang pour apparition ou non du nuage (uCoverage), 
+                                           // on shuffle pour pas que les nuages apparaissent dans l'ordre
 
     for (let i = 0; i < count; i++) {
       // Placement (anneau, dôme...) délégué à la sous-classe.
